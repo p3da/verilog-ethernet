@@ -24,9 +24,7 @@ THE SOFTWARE.
 
 // Language: Verilog 2001
 
-`resetall
 `timescale 1ns / 1ps
-`default_nettype none
 
 /*
  * RGMII PHY interface
@@ -40,9 +38,10 @@ module rgmii_phy_if #
     // Use IODDR2 for Spartan-6
     parameter IODDR_STYLE = "IODDR2",
     // Clock input style ("BUFG", "BUFR", "BUFIO", "BUFIO2")
-    // Use BUFR for Virtex-6, 7-series
-    // Use BUFG for Virtex-5, Spartan-6, Ultrascale
-    parameter CLOCK_INPUT_STYLE = "BUFG",
+    // Use BUFR for Virtex-5, Virtex-6, 7-series
+    // Use BUFG for Ultrascale
+    // Use BUFIO2 for Spartan-6
+    parameter CLOCK_INPUT_STYLE = "BUFIO2",
     // Use 90 degree clock for RGMII transmit ("TRUE", "FALSE")
     parameter USE_CLK90 = "TRUE"
 )
@@ -163,12 +162,12 @@ always @(posedge clk) begin
     end
 end
 
-reg [3:0] rgmii_txd_1 = 0;
-reg [3:0] rgmii_txd_2 = 0;
-reg rgmii_tx_ctl_1 = 1'b0;
-reg rgmii_tx_ctl_2 = 1'b0;
+reg [3:0] rgmii_txd_1;
+reg [3:0] rgmii_txd_2;
+reg rgmii_tx_ctl_1;
+reg rgmii_tx_ctl_2;
 
-reg gmii_clk_en = 1'b1;
+reg gmii_clk_en;
 
 always @* begin
     if (speed == 2'b00) begin
@@ -261,5 +260,3 @@ always @(posedge mac_gmii_rx_clk or posedge rst) begin
 end
 
 endmodule
-
-`resetall

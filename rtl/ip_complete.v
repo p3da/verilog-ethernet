@@ -24,9 +24,7 @@ THE SOFTWARE.
 
 // Language: Verilog 2001
 
-`resetall
 `timescale 1ns / 1ps
-`default_nettype none
 
 /*
  * IPv4 and ARP block, ethernet frame interface
@@ -263,8 +261,8 @@ eth_arb_mux #(
     .DEST_ENABLE(0),
     .USER_ENABLE(1),
     .USER_WIDTH(1),
-    .ARB_TYPE_ROUND_ROBIN(0),
-    .ARB_LSB_HIGH_PRIORITY(1)
+    .ARB_TYPE("PRIORITY"),
+    .LSB_PRIORITY("HIGH")
 )
 eth_arb_mux_inst (
     .clk(clk),
@@ -440,5 +438,3 @@ arp_inst (
 );
 
 endmodule
-
-`resetall

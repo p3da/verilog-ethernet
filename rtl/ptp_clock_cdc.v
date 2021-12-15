@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2019-2021 Alex Forencich
+Copyright (c) 2019 Alex Forencich
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -24,9 +24,7 @@ THE SOFTWARE.
 
 // Language: Verilog 2001
 
-`resetall
 `timescale 1ns / 1ps
-`default_nettype none
 
 /*
  * PTP clock CDC (clock domain crossing) module
@@ -36,7 +34,12 @@ module ptp_clock_cdc #
     parameter TS_WIDTH = 96,
     parameter NS_WIDTH = 4,
     parameter FNS_WIDTH = 16,
+    parameter INPUT_PERIOD_NS = 4'h6,
+    parameter INPUT_PERIOD_FNS = 16'h6666,
+    parameter OUTPUT_PERIOD_NS = 4'h6,
+    parameter OUTPUT_PERIOD_FNS = 16'h6666,
     parameter USE_SAMPLE_CLOCK = 1,
+    parameter LOG_FIFO_DEPTH = 3,
     parameter LOG_RATE = 3
 )
 (
@@ -50,7 +53,6 @@ module ptp_clock_cdc #
      * Timestamp inputs from source PTP clock
      */
     input  wire [TS_WIDTH-1:0]  input_ts,
-    input  wire                 input_ts_step,
 
     /*
      * Timestamp outputs
@@ -61,12 +63,7 @@ module ptp_clock_cdc #
     /*
      * PPS output
      */
-    output wire                 output_pps,
-
-    /*
-     * Status
-     */
-    output wire                 locked
+    output wire                 output_pps
 );
 
 // bus width assertions
@@ -79,74 +76,78 @@ end
 
 parameter TS_NS_WIDTH = TS_WIDTH == 96 ? 30 : 48;
 
-parameter PHASE_CNT_WIDTH = LOG_RATE;
-parameter PHASE_ACC_WIDTH = PHASE_CNT_WIDTH+16;
+parameter FIFO_ADDR_WIDTH = LOG_FIFO_DEPTH+1;
+parameter LOG_AVG = 6;
+parameter LOG_AVG_SCALE = LOG_AVG+8;
+parameter LOG_AVG_SYNC_RATE = LOG_RATE;
+parameter WR_PERIOD = ((((INPUT_PERIOD_NS << 16) + INPUT_PERIOD_FNS) + 64'd0) << 16) / ((OUTPUT_PERIOD_NS << 16) + OUTPUT_PERIOD_FNS) / 2**(LOG_RATE+1);
 
-parameter LOG_SAMPLE_SYNC_RATE = LOG_RATE;
-parameter SAMPLE_ACC_WIDTH = LOG_SAMPLE_SYNC_RATE+2;
+reg [NS_WIDTH-1:0] period_ns_reg = OUTPUT_PERIOD_NS;
+reg [FNS_WIDTH-1:0] period_fns_reg = OUTPUT_PERIOD_FNS;
 
-parameter DEST_SYNC_LOCK_WIDTH = 7;
-parameter PTP_LOCK_WIDTH = 8;
+reg [47:0] ts_s_reg = 0;
+reg [TS_NS_WIDTH-1:0] ts_ns_reg = 0;
+reg [FNS_WIDTH-1:0] ts_fns_reg = 0;
+reg [TS_NS_WIDTH-1:0] ts_ns_inc_reg = 0;
+reg [FNS_WIDTH-1:0] ts_fns_inc_reg = 0;
+reg [TS_NS_WIDTH+1-1:0] ts_ns_ovf_reg = {TS_NS_WIDTH+1{1'b1}};
+reg [FNS_WIDTH-1:0] ts_fns_ovf_reg = {FNS_WIDTH{1'b1}};
 
-reg [NS_WIDTH-1:0] period_ns_reg = 0, period_ns_next;
-reg [FNS_WIDTH-1:0] period_fns_reg = 0, period_fns_next;
-
-reg [47:0] src_ts_s_capt_reg = 0;
-reg [TS_NS_WIDTH-1:0] src_ts_ns_capt_reg = 0;
-reg [FNS_WIDTH-1:0] src_ts_fns_capt_reg = 0;
-reg src_ts_step_capt_reg = 0;
-
-reg [47:0] dest_ts_s_capt_reg = 0;
-reg [TS_NS_WIDTH-1:0] dest_ts_ns_capt_reg = 0;
-reg [FNS_WIDTH-1:0] dest_ts_fns_capt_reg = 0;
-
-reg [47:0] ts_s_sync_reg = 0;
-reg [TS_NS_WIDTH-1:0] ts_ns_sync_reg = 0;
-reg [FNS_WIDTH-1:0] ts_fns_sync_reg = 0;
-reg ts_step_sync_reg = 0;
-
-reg [47:0] ts_s_reg = 0, ts_s_next;
-reg [TS_NS_WIDTH-1:0] ts_ns_reg = 0, ts_ns_next;
-reg [FNS_WIDTH-1:0] ts_fns_reg = 0, ts_fns_next;
-reg [TS_NS_WIDTH-1:0] ts_ns_inc_reg = 0, ts_ns_inc_next;
-reg [FNS_WIDTH-1:0] ts_fns_inc_reg = 0, ts_fns_inc_next;
-reg [TS_NS_WIDTH+1-1:0] ts_ns_ovf_reg = {TS_NS_WIDTH+1{1'b1}}, ts_ns_ovf_next;
-reg [FNS_WIDTH-1:0] ts_fns_ovf_reg = {FNS_WIDTH{1'b1}}, ts_fns_ovf_next;
-
-reg ts_step_reg = 1'b0, ts_step_next;
+reg ts_step_reg = 1'b0;
 
 reg pps_reg = 0;
 
-reg [PHASE_CNT_WIDTH-1:0] src_phase_reg = {PHASE_CNT_WIDTH{1'b0}};
-reg [PHASE_ACC_WIDTH-1:0] dest_phase_reg = {PHASE_ACC_WIDTH{1'b0}}, dest_phase_next;
-reg [PHASE_ACC_WIDTH-1:0] dest_phase_inc_reg = {PHASE_ACC_WIDTH{1'b0}}, dest_phase_inc_next;
+reg [FIFO_ADDR_WIDTH:0] wr_ptr_reg = {FIFO_ADDR_WIDTH+1{1'b0}}, wr_ptr_next;
+reg [FIFO_ADDR_WIDTH:0] wr_ptr_gray_reg = {FIFO_ADDR_WIDTH+1{1'b0}}, wr_ptr_gray_next;
+reg [FIFO_ADDR_WIDTH:0] rd_ptr_reg = {FIFO_ADDR_WIDTH+1{1'b0}}, rd_ptr_next;
+reg [FIFO_ADDR_WIDTH:0] rd_ptr_gray_reg = {FIFO_ADDR_WIDTH+1{1'b0}}, rd_ptr_gray_next;
 
-reg src_sync_reg = 1'b0;
-reg src_update_reg = 1'b0;
-reg dest_sync_reg = 1'b0, dest_sync_next = 1'b0;
-reg dest_update_reg = 1'b0, dest_update_next = 1'b0;
+reg [FIFO_ADDR_WIDTH:0] wr_ptr_gray_sync1_reg = {FIFO_ADDR_WIDTH+1{1'b0}};
+reg [FIFO_ADDR_WIDTH:0] wr_ptr_gray_sync2_reg = {FIFO_ADDR_WIDTH+1{1'b0}};
+wire [FIFO_ADDR_WIDTH:0] wr_ptr_sync2;
+reg [FIFO_ADDR_WIDTH:0] rd_ptr_gray_sync1_reg = {FIFO_ADDR_WIDTH+1{1'b0}};
+reg [FIFO_ADDR_WIDTH:0] rd_ptr_gray_sync2_reg = {FIFO_ADDR_WIDTH+1{1'b0}};
+wire [FIFO_ADDR_WIDTH:0] rd_ptr_sync2;
 
-reg src_sync_sync1_reg = 1'b0;
-reg src_sync_sync2_reg = 1'b0;
-reg src_sync_sync3_reg = 1'b0;
-reg dest_sync_sync1_reg = 1'b0;
-reg dest_sync_sync2_reg = 1'b0;
-reg dest_sync_sync3_reg = 1'b0;
+reg [FIFO_ADDR_WIDTH:0] wr_ptr_gray_sample_sync1_reg = {FIFO_ADDR_WIDTH+1{1'b0}};
+reg [FIFO_ADDR_WIDTH:0] wr_ptr_gray_sample_sync2_reg = {FIFO_ADDR_WIDTH+1{1'b0}};
+wire [FIFO_ADDR_WIDTH:0] wr_ptr_sample_sync2;
+reg [FIFO_ADDR_WIDTH:0] rd_ptr_gray_sample_sync1_reg = {FIFO_ADDR_WIDTH+1{1'b0}};
+reg [FIFO_ADDR_WIDTH:0] rd_ptr_gray_sample_sync2_reg = {FIFO_ADDR_WIDTH+1{1'b0}};
+wire [FIFO_ADDR_WIDTH:0] rd_ptr_sample_sync2;
 
-reg src_sync_sample_sync1_reg = 1'b0;
-reg src_sync_sample_sync2_reg = 1'b0;
-reg src_sync_sample_sync3_reg = 1'b0;
-reg dest_sync_sample_sync1_reg = 1'b0;
-reg dest_sync_sample_sync2_reg = 1'b0;
-reg dest_sync_sample_sync3_reg = 1'b0;
+reg [15:0] wr_acc_reg = 16'd0, wr_acc_next;
+reg [15:0] wr_inc_reg = WR_PERIOD, wr_inc_next;
+reg [31:0] err_int_reg = 0, err_int_next;
 
-reg [SAMPLE_ACC_WIDTH-1:0] sample_acc_reg = 0, sample_acc_next = 0;
-reg [SAMPLE_ACC_WIDTH-1:0] sample_acc_out_reg = 0;
-reg [LOG_SAMPLE_SYNC_RATE-1:0] sample_cnt_reg = 0;
+reg [LOG_RATE-1:0] rd_cnt_reg = {LOG_RATE{1'b0}}, rd_cnt_next;
+
+reg [LOG_FIFO_DEPTH+LOG_AVG_SCALE+2-1:0] sample_acc_reg = 0;
+reg [LOG_FIFO_DEPTH+LOG_AVG_SCALE+2-1:0] sample_avg_reg = 0;
+reg [LOG_AVG_SYNC_RATE-1:0] sample_cnt_reg = 0;
 reg sample_update_reg = 1'b0;
 reg sample_update_sync1_reg = 1'b0;
 reg sample_update_sync2_reg = 1'b0;
 reg sample_update_sync3_reg = 1'b0;
+
+reg [TS_WIDTH-1:0] mem[(2**FIFO_ADDR_WIDTH)-1:0];
+reg [TS_WIDTH-1:0] mem_read_data_reg = 0;
+
+// full when first TWO MSBs do NOT match, but rest matches
+// (gray code equivalent of first MSB different but rest same)
+wire full = ((wr_ptr_gray_reg[FIFO_ADDR_WIDTH] != rd_ptr_gray_sync2_reg[FIFO_ADDR_WIDTH]) &&
+             (wr_ptr_gray_reg[FIFO_ADDR_WIDTH-1] != rd_ptr_gray_sync2_reg[FIFO_ADDR_WIDTH-1]) &&
+             (wr_ptr_gray_reg[FIFO_ADDR_WIDTH-2:0] == rd_ptr_gray_sync2_reg[FIFO_ADDR_WIDTH-2:0]));
+// empty when pointers match exactly
+wire empty = rd_ptr_gray_reg == wr_ptr_gray_sync2_reg;
+
+wire [FIFO_ADDR_WIDTH:0] wr_depth = wr_ptr_reg - rd_ptr_sync2;
+wire [FIFO_ADDR_WIDTH:0] rd_depth = wr_ptr_sync2 - rd_ptr_reg;
+wire [FIFO_ADDR_WIDTH:0] sample_depth = wr_ptr_sample_sync2 - rd_ptr_sample_sync2;
+
+// control signals
+reg write;
+reg read;
 
 generate
 
@@ -166,494 +167,279 @@ assign output_ts_step = ts_step_reg;
 
 assign output_pps = pps_reg;
 
-// source PTP clock capture and sync logic
-reg input_ts_step_reg = 1'b0;
+generate
 
-always @(posedge input_clk) begin
-    input_ts_step_reg <= input_ts_step || input_ts_step_reg;
+    genvar n;
 
-    {src_update_reg, src_phase_reg} <= src_phase_reg+1;
-
-    if (src_update_reg) begin
-        // capture source TS
-        if (TS_WIDTH == 96) begin
-            src_ts_s_capt_reg <= input_ts[95:48];
-            src_ts_ns_capt_reg <= input_ts[45:16];
-        end else begin
-            src_ts_ns_capt_reg <= input_ts[63:16];
-        end
-        src_ts_fns_capt_reg <= FNS_WIDTH > 16 ? input_ts[15:0] << (FNS_WIDTH-16) : input_ts[15:0] >> (16-FNS_WIDTH);
-        src_ts_step_capt_reg <= input_ts_step || input_ts_step_reg;
-        input_ts_step_reg <= 1'b0;
-        src_sync_reg <= !src_sync_reg;
+    for (n = 0; n < FIFO_ADDR_WIDTH+1; n = n + 1) begin
+        assign wr_ptr_sync2[n] = ^wr_ptr_gray_sync2_reg[FIFO_ADDR_WIDTH+1-1:n];
+        assign rd_ptr_sync2[n] = ^rd_ptr_gray_sync2_reg[FIFO_ADDR_WIDTH+1-1:n];
+        assign wr_ptr_sample_sync2[n] = ^wr_ptr_gray_sample_sync2_reg[FIFO_ADDR_WIDTH+1-1:n];
+        assign rd_ptr_sample_sync2[n] = ^rd_ptr_gray_sample_sync2_reg[FIFO_ADDR_WIDTH+1-1:n];
     end
 
-    if (input_rst) begin
-        input_ts_step_reg <= 1'b0;
+endgenerate
 
-        src_phase_reg <= {PHASE_CNT_WIDTH{1'b0}};
-        src_sync_reg <= 1'b0;
-        src_update_reg <= 1'b0;
+// pointer sync
+always @(posedge input_clk) begin
+    if (input_rst) begin
+        rd_ptr_gray_sync1_reg <= {FIFO_ADDR_WIDTH+1{1'b0}};
+        rd_ptr_gray_sync2_reg <= {FIFO_ADDR_WIDTH+1{1'b0}};
+    end else begin
+        rd_ptr_gray_sync1_reg <= rd_ptr_gray_reg;
+        rd_ptr_gray_sync2_reg <= rd_ptr_gray_sync1_reg;
     end
 end
 
-// CDC logic
 always @(posedge output_clk) begin
-    src_sync_sync1_reg <= src_sync_reg;
-    src_sync_sync2_reg <= src_sync_sync1_reg;
-    src_sync_sync3_reg <= src_sync_sync2_reg;
-    dest_sync_sync1_reg <= dest_sync_reg;
-    dest_sync_sync2_reg <= dest_sync_sync1_reg;
-    dest_sync_sync3_reg <= dest_sync_sync2_reg;
+    if (output_rst) begin
+        wr_ptr_gray_sync1_reg <= {FIFO_ADDR_WIDTH+1{1'b0}};
+        wr_ptr_gray_sync2_reg <= {FIFO_ADDR_WIDTH+1{1'b0}};
+    end else begin
+        wr_ptr_gray_sync1_reg <= wr_ptr_gray_reg;
+        wr_ptr_gray_sync2_reg <= wr_ptr_gray_sync1_reg;
+    end
 end
 
 always @(posedge sample_clk) begin
-    src_sync_sample_sync1_reg <= src_sync_reg;
-    src_sync_sample_sync2_reg <= src_sync_sample_sync1_reg;
-    src_sync_sample_sync3_reg <= src_sync_sample_sync2_reg;
-    dest_sync_sample_sync1_reg <= dest_sync_reg;
-    dest_sync_sample_sync2_reg <= dest_sync_sample_sync1_reg;
-    dest_sync_sample_sync3_reg <= dest_sync_sample_sync2_reg;
+    rd_ptr_gray_sample_sync1_reg <= rd_ptr_gray_reg;
+    rd_ptr_gray_sample_sync2_reg <= rd_ptr_gray_sample_sync1_reg;
+    wr_ptr_gray_sample_sync1_reg <= wr_ptr_gray_reg;
+    wr_ptr_gray_sample_sync2_reg <= wr_ptr_gray_sample_sync1_reg;
 end
-
-reg edge_1_reg = 1'b0;
-reg edge_2_reg = 1'b0;
-
-reg [3:0] active_reg = 0;
 
 always @(posedge sample_clk) begin
     if (USE_SAMPLE_CLOCK) begin
-        // phase and frequency detector
-        if (dest_sync_sample_sync2_reg && !dest_sync_sample_sync3_reg) begin
-            if (src_sync_sample_sync2_reg && !src_sync_sample_sync3_reg) begin
-                edge_1_reg <= 1'b0;
-                edge_2_reg <= 1'b0;
-                active_reg[0] <= 1'b1;
-            end else begin
-                edge_1_reg <= !edge_2_reg;
-                edge_2_reg <= 1'b0;
-            end
-        end else if (src_sync_sample_sync2_reg && !src_sync_sample_sync3_reg) begin
-            edge_1_reg <= 1'b0;
-            edge_2_reg <= !edge_1_reg;
-            active_reg[0] <= 1'b1;
-        end
-
-        // accumulator
-        sample_acc_reg <= $signed(sample_acc_reg) + $signed({1'b0, edge_2_reg}) - $signed({1'b0, edge_1_reg});
-
+        sample_acc_reg <= sample_acc_reg + ((sample_depth * 2**LOG_AVG_SCALE - sample_acc_reg) >> LOG_AVG);
         sample_cnt_reg <= sample_cnt_reg + 1;
 
         if (sample_cnt_reg == 0) begin
-            active_reg <= active_reg << 1;
-            sample_acc_reg <= $signed({1'b0, edge_2_reg}) - $signed({1'b0, edge_1_reg});
-            sample_acc_out_reg <= sample_acc_reg;
-            if (active_reg != 0) begin
-                sample_update_reg <= !sample_update_reg;
-            end
+            sample_update_reg <= !sample_update_reg;
+            sample_avg_reg <= sample_acc_reg;
         end
     end
 end
 
-always @(posedge output_clk) begin
+always @(posedge input_clk) begin
     sample_update_sync1_reg <= sample_update_reg;
     sample_update_sync2_reg <= sample_update_sync1_reg;
     sample_update_sync3_reg <= sample_update_sync2_reg;
 end
 
-reg [SAMPLE_ACC_WIDTH-1:0] sample_acc_sync_reg = 0;
-reg sample_acc_sync_valid_reg = 0;
+reg [LOG_FIFO_DEPTH+LOG_AVG_SCALE+2-1:0] sample_avg_sync_reg = 0;
+reg sample_avg_sync_valid_reg = 0;
 
-always @(posedge output_clk) begin
+always @(posedge input_clk) begin
     if (USE_SAMPLE_CLOCK) begin
-        // latch in synchronized counts from phase detector
-        sample_acc_sync_valid_reg <= 1'b0;
+        sample_avg_sync_valid_reg <= 1'b0;
         if (sample_update_sync2_reg ^ sample_update_sync3_reg) begin
-            sample_acc_sync_reg <= sample_acc_out_reg;
-            sample_acc_sync_valid_reg <= 1'b1;
+            sample_avg_sync_reg <= sample_avg_reg;
+            sample_avg_sync_valid_reg <= 1'b1;
         end
     end else begin
-        // phase and frequency detector
-        if (dest_sync_sync2_reg && !dest_sync_sync3_reg) begin
-            if (src_sync_sync2_reg && !src_sync_sync3_reg) begin
-                edge_1_reg <= 1'b0;
-                edge_2_reg <= 1'b0;
-                active_reg[0] <= 1'b1;
-            end else begin
-                edge_1_reg <= !edge_2_reg;
-                edge_2_reg <= 1'b0;
-            end
-        end else if (src_sync_sync2_reg && !src_sync_sync3_reg) begin
-            edge_1_reg <= 1'b0;
-            edge_2_reg <= !edge_1_reg;
-            active_reg[0] <= 1'b1;
-        end
-
-        // accumulator
-        sample_acc_reg <= $signed(sample_acc_reg) + $signed({1'b0, edge_2_reg}) - $signed({1'b0, edge_1_reg});
-
+        sample_acc_reg <= sample_acc_reg + ((wr_depth * 2**LOG_AVG_SCALE - sample_acc_reg) >> LOG_AVG);
         sample_cnt_reg <= sample_cnt_reg + 1;
 
-        sample_acc_sync_valid_reg <= 1'b0;
+        sample_avg_sync_valid_reg <= 1'b0;
         if (sample_cnt_reg == 0) begin
-            active_reg <= active_reg << 1;
-            sample_acc_reg <= $signed({1'b0, edge_2_reg}) - $signed({1'b0, edge_1_reg});
-            sample_acc_sync_reg <= sample_acc_reg;
-            if (active_reg != 0) begin
-                sample_update_reg <= !sample_update_reg;
-                sample_acc_sync_valid_reg <= 1'b1;
-            end
+            sample_avg_sync_reg <= sample_acc_reg;
+            sample_avg_sync_valid_reg <= 1'b1;
         end
     end
 end
-
-reg [PHASE_ACC_WIDTH-1:0] dest_err_int_reg = 0, dest_err_int_next = 0;
-reg [1:0] dest_ovf;
-
-reg [DEST_SYNC_LOCK_WIDTH-1:0] dest_sync_lock_count_reg = 0, dest_sync_lock_count_next;
-reg dest_sync_locked_reg = 1'b0, dest_sync_locked_next;
 
 always @* begin
-    {dest_update_next, dest_phase_next} = dest_phase_reg + dest_phase_inc_reg;
-    dest_phase_inc_next = dest_phase_inc_reg;
+    write = 1'b0;
 
-    dest_err_int_next = dest_err_int_reg;
+    wr_ptr_next = wr_ptr_reg;
+    wr_ptr_gray_next = wr_ptr_gray_reg;
 
-    dest_sync_lock_count_next = dest_sync_lock_count_reg;
-    dest_sync_locked_next = dest_sync_locked_reg;
+    wr_acc_next = wr_acc_reg + wr_inc_reg;
+    wr_inc_next = wr_inc_reg;
 
-    if (sample_acc_sync_valid_reg) begin
-        // updated sampled dest_phase error
+    err_int_next = err_int_reg;
 
-        // time integral of error
-        if (dest_sync_locked_reg) begin
-            {dest_ovf, dest_err_int_next} = $signed({1'b0, dest_err_int_reg}) + $signed(sample_acc_sync_reg);
-        end else begin
-            {dest_ovf, dest_err_int_next} = $signed({1'b0, dest_err_int_reg}) + ($signed(sample_acc_sync_reg) * 2**6);
+    if (sample_avg_sync_valid_reg) begin
+        // updated sampled FIFO depth
+        err_int_next = err_int_reg + (sample_avg_sync_reg - (2**LOG_FIFO_DEPTH * 2**LOG_AVG_SCALE));
+        wr_inc_next = WR_PERIOD + (((2**LOG_FIFO_DEPTH * 2**LOG_AVG_SCALE) - sample_avg_sync_reg) >> 8) - ($signed(err_int_reg) >> 13);
+        if ($signed(wr_inc_next) > $signed(WR_PERIOD*4)) begin
+            wr_inc_next = WR_PERIOD*4;
+        end else if ($signed(wr_inc_next) < $signed(WR_PERIOD/4)) begin
+            wr_inc_next = WR_PERIOD/4;
         end
+    end
 
-        // saturate
-        if (dest_ovf[1]) begin
-            // sign bit set indicating underflow across zero; saturate to zero
-            dest_err_int_next = {PHASE_ACC_WIDTH{1'b0}};
-        end else if (dest_ovf[0]) begin
-            // sign bit clear but carry bit set indicating overflow; saturate to all 1
-            dest_err_int_next = {PHASE_ACC_WIDTH{1'b1}};
-        end
-
-        // compute output
-        if (dest_sync_locked_reg) begin
-            {dest_ovf, dest_phase_inc_next} = $signed({1'b0, dest_err_int_reg}) + ($signed(sample_acc_sync_reg) * 2**4);
-        end else begin
-            {dest_ovf, dest_phase_inc_next} = $signed({1'b0, dest_err_int_reg}) + ($signed(sample_acc_sync_reg) * 2**10);
-        end
-
-        // saturate
-        if (dest_ovf[1]) begin
-            // sign bit set indicating underflow across zero; saturate to zero
-            dest_phase_inc_next = {PHASE_ACC_WIDTH{1'b0}};
-        end else if (dest_ovf[0]) begin
-            // sign bit clear but carry bit set indicating overflow; saturate to all 1
-            dest_phase_inc_next = {PHASE_ACC_WIDTH{1'b1}};
-        end
-
-        // locked status
-        if ($signed(sample_acc_sync_reg[SAMPLE_ACC_WIDTH-1:2]) == 0 || $signed(sample_acc_sync_reg[SAMPLE_ACC_WIDTH-1:1]) == -1) begin
-            if (dest_sync_lock_count_reg == {DEST_SYNC_LOCK_WIDTH{1'b1}}) begin
-                dest_sync_locked_next = 1'b1;
-            end else begin
-                dest_sync_lock_count_next = dest_sync_lock_count_reg + 1;
-            end
-        end else begin
-            dest_sync_lock_count_next = 0;
-            dest_sync_locked_next = 1'b0;
-        end
+    if (!full && wr_acc_reg[15] != wr_acc_next[15]) begin
+        write = 1'b1;
+        wr_ptr_next = wr_ptr_reg + 1;
+        wr_ptr_gray_next = wr_ptr_next ^ (wr_ptr_next >> 1);
     end
 end
 
-reg ts_sync_valid_reg = 1'b0;
-reg ts_capt_valid_reg = 1'b0;
+always @(posedge input_clk) begin
+    wr_ptr_reg <= wr_ptr_next;
+    wr_ptr_gray_reg <= wr_ptr_gray_next;
+
+    wr_acc_reg <= wr_acc_next;
+    wr_inc_reg <= wr_inc_next;
+
+    err_int_reg <= err_int_next;
+
+    if (write) begin
+        mem[wr_ptr_reg[FIFO_ADDR_WIDTH-1:0]] <= input_ts;
+    end
+
+    if (input_rst) begin
+        wr_ptr_reg <= {FIFO_ADDR_WIDTH+1{1'b0}};
+        wr_ptr_gray_reg <= {FIFO_ADDR_WIDTH+1{1'b0}};
+        wr_acc_reg <= 16'd0;
+        wr_inc_reg <= WR_PERIOD;
+
+        err_int_reg <= 0;
+    end
+end
+
+always @* begin
+    read = 1'b0;
+
+    rd_ptr_next = rd_ptr_reg;
+    rd_ptr_gray_next = rd_ptr_gray_reg;
+
+    rd_cnt_next = rd_cnt_reg + 1;
+
+    if (!empty && rd_cnt_reg == 0) begin
+        read = 1'b1;
+        rd_ptr_next = rd_ptr_reg + 1;
+        rd_ptr_gray_next = rd_ptr_next ^ (rd_ptr_next >> 1);
+    end
+end
 
 always @(posedge output_clk) begin
-    dest_phase_reg <= dest_phase_next;
-    dest_phase_inc_reg <= dest_phase_inc_next;
-    dest_update_reg <= dest_update_next;
+    rd_ptr_reg <= rd_ptr_next;
+    rd_ptr_gray_reg <= rd_ptr_gray_next;
 
-    if (dest_update_reg) begin
-        // capture local TS
-        dest_ts_s_capt_reg <= ts_s_reg;
-        dest_ts_ns_capt_reg <= ts_ns_reg;
-        dest_ts_fns_capt_reg <= ts_fns_reg;
+    rd_cnt_reg <= rd_cnt_next;
 
-        dest_sync_reg <= !dest_sync_reg;
-        ts_capt_valid_reg <= 1'b1;
+    if (!empty) begin
+        mem_read_data_reg <= mem[rd_ptr_reg[FIFO_ADDR_WIDTH-1:0]];
     end
 
-    ts_sync_valid_reg <= 1'b0;
-
-    if (src_sync_sync2_reg ^ src_sync_sync3_reg) begin
-        // store captured source TS
-        if (TS_WIDTH == 96) begin
-            ts_s_sync_reg <= src_ts_s_capt_reg;
-        end
-        ts_ns_sync_reg <= src_ts_ns_capt_reg;
-        ts_fns_sync_reg <= src_ts_fns_capt_reg;
-        ts_step_sync_reg <= src_ts_step_capt_reg;
-
-        ts_sync_valid_reg <= ts_capt_valid_reg;
-        ts_capt_valid_reg <= 1'b0;
+    if (read) begin
+        
     end
-
-    dest_err_int_reg <= dest_err_int_next;
-
-    dest_sync_lock_count_reg <= dest_sync_lock_count_next;
-    dest_sync_locked_reg <= dest_sync_locked_next;
 
     if (output_rst) begin
-        dest_phase_reg <= {PHASE_ACC_WIDTH{1'b0}};
-        dest_phase_inc_reg <= {PHASE_ACC_WIDTH{1'b0}};
-        dest_sync_reg <= 1'b0;
-        dest_update_reg <= 1'b0;
-
-        dest_err_int_reg <= 0;
-
-        dest_sync_lock_count_reg <= 0;
-        dest_sync_locked_reg <= 1'b0;
-
-        ts_sync_valid_reg <= 1'b0;
-        ts_capt_valid_reg <= 1'b0;
+        rd_ptr_reg <= {FIFO_ADDR_WIDTH+1{1'b0}};
+        rd_ptr_gray_reg <= {FIFO_ADDR_WIDTH+1{1'b0}};
+        rd_cnt_reg <= {LOG_RATE{1'b0}};
     end
 end
 
-parameter TIME_ERR_INT_WIDTH = NS_WIDTH+FNS_WIDTH+16;
+reg sec_mismatch_reg = 1'b0;
+reg diff_valid_reg = 1'b0;
+reg diff_offset_valid_reg = 1'b0;
 
-reg sec_mismatch_reg = 1'b0, sec_mismatch_next;
-reg diff_valid_reg = 1'b0, diff_valid_next;
-reg diff_corr_valid_reg = 1'b0, diff_corr_valid_next;
+reg [TS_NS_WIDTH+1-1:0] ts_ns_diff_reg = 31'd0;
+reg [FNS_WIDTH-1:0] ts_fns_diff_reg = 16'd0;
 
-reg [47:0] ts_s_diff_reg = 0, ts_s_diff_next;
-reg [TS_NS_WIDTH+1-1:0] ts_ns_diff_reg = 0, ts_ns_diff_next;
-reg [FNS_WIDTH-1:0] ts_fns_diff_reg = 0, ts_fns_diff_next;
+reg [48:0] time_err_int_reg = 32'd0;
 
-reg [16:0] ts_ns_diff_corr_reg = 0, ts_ns_diff_corr_next;
-reg [FNS_WIDTH-1:0] ts_fns_diff_corr_reg = 0, ts_fns_diff_corr_next;
+always @(posedge output_clk) begin
+    ts_step_reg <= 0;
 
-reg [TIME_ERR_INT_WIDTH-1:0] time_err_int_reg = 0, time_err_int_next;
+    diff_valid_reg <= 1'b0;
+    diff_offset_valid_reg <= 1'b0;
 
-reg [1:0] ptp_ovf;
-
-reg [PTP_LOCK_WIDTH-1:0] ptp_lock_count_reg = 0, ptp_lock_count_next;
-reg ptp_locked_reg = 1'b0, ptp_locked_next;
-
-assign locked = ptp_locked_reg && dest_sync_locked_reg;
-
-always @* begin
-    period_ns_next = period_ns_reg;
-    period_fns_next = period_fns_reg;
-
-    ts_s_next = ts_s_reg;
-    ts_ns_next = ts_ns_reg;
-    ts_fns_next = ts_fns_reg;
-    ts_ns_inc_next = ts_ns_inc_reg;
-    ts_fns_inc_next = ts_fns_inc_reg;
-    ts_ns_ovf_next = ts_ns_ovf_reg;
-    ts_fns_ovf_next = ts_fns_ovf_reg;
-
-    ts_step_next = 0;
-
-    diff_valid_next = 1'b0;
-    diff_corr_valid_next = 1'b0;
-
-    sec_mismatch_next = sec_mismatch_reg;
-    diff_valid_next = 1'b0;
-    diff_corr_valid_next = 1'b0;
-    
-    ts_s_diff_next = ts_s_diff_reg;
-    ts_ns_diff_next = ts_ns_diff_reg;
-    ts_fns_diff_next = ts_fns_diff_reg;
-
-    ts_ns_diff_corr_next = ts_ns_diff_corr_reg;
-    ts_fns_diff_corr_next = ts_fns_diff_corr_reg;
-    
-    time_err_int_next = time_err_int_reg;
-
-    ptp_lock_count_next = ptp_lock_count_reg;
-    ptp_locked_next = ptp_locked_reg;
-
-    // PTP clock
+    // 96 bit timestamp
     if (TS_WIDTH == 96) begin
-        // 96 bit timestamp
         if (!ts_ns_ovf_reg[30]) begin
             // if the overflow lookahead did not borrow, one second has elapsed
             // increment seconds field, pre-compute both normal increment and overflow values
-            {ts_ns_inc_next, ts_fns_inc_next} = {ts_ns_ovf_reg, ts_fns_ovf_reg} + {period_ns_reg, period_fns_reg};
-            {ts_ns_ovf_next, ts_fns_ovf_next} = {ts_ns_ovf_reg, ts_fns_ovf_reg} + {period_ns_reg, period_fns_reg} - {31'd1_000_000_000, {FNS_WIDTH{1'b0}}};
-            {ts_ns_next, ts_fns_next} = {ts_ns_ovf_reg, ts_fns_ovf_reg};
-            ts_s_next = ts_s_next + 1;
+            {ts_ns_inc_reg, ts_fns_inc_reg} <= {ts_ns_ovf_reg, ts_fns_ovf_reg} + {period_ns_reg, period_fns_reg};
+            {ts_ns_ovf_reg, ts_fns_ovf_reg} <= {ts_ns_ovf_reg, ts_fns_ovf_reg} + {period_ns_reg, period_fns_reg} - {31'd1_000_000_000, {FNS_WIDTH{1'b0}}};
+            {ts_ns_reg, ts_fns_reg} <= {ts_ns_ovf_reg, ts_fns_ovf_reg};
+            ts_s_reg <= ts_s_reg + 1;
         end else begin
             // no increment seconds field, pre-compute both normal increment and overflow values
-            {ts_ns_inc_next, ts_fns_inc_next} = {ts_ns_inc_reg, ts_fns_inc_reg} + {period_ns_reg, period_fns_reg};
-            {ts_ns_ovf_next, ts_fns_ovf_next} = {ts_ns_inc_reg, ts_fns_inc_reg} + {period_ns_reg, period_fns_reg} - {31'd1_000_000_000, {FNS_WIDTH{1'b0}}};
-            {ts_ns_next, ts_fns_next} = {ts_ns_inc_reg, ts_fns_inc_reg};
-            ts_s_next = ts_s_next;
+            {ts_ns_inc_reg, ts_fns_inc_reg} <= {ts_ns_inc_reg, ts_fns_inc_reg} + {period_ns_reg, period_fns_reg};
+            {ts_ns_ovf_reg, ts_fns_ovf_reg} <= {ts_ns_inc_reg, ts_fns_inc_reg} + {period_ns_reg, period_fns_reg} - {31'd1_000_000_000, {FNS_WIDTH{1'b0}}};
+            {ts_ns_reg, ts_fns_reg} <= {ts_ns_inc_reg, ts_fns_inc_reg};
+            ts_s_reg <= ts_s_reg;
         end
     end else if (TS_WIDTH == 64) begin
-        // 64 bit timestamp
-        {ts_ns_next, ts_fns_next} = {ts_ns_reg, ts_fns_reg} + {period_ns_reg, period_fns_reg};
+        {ts_ns_reg, ts_fns_reg} <= {ts_ns_reg, ts_fns_reg} + {period_ns_reg, period_fns_reg};
     end
 
-    if (ts_sync_valid_reg) begin
-        // Read new value
+    // FIFO dequeue
+    if (read) begin
+        // dequeue from FIFO
         if (TS_WIDTH == 96) begin
-            if (ts_step_sync_reg || sec_mismatch_reg) begin
-                // input stepped
-                sec_mismatch_next = 1'b0;
+            if (mem_read_data_reg[95:48] != ts_s_reg) begin
+                // seconds field doesn't match
+                if (!sec_mismatch_reg) begin
+                    // ignore the first time
+                    sec_mismatch_reg <= 1'b1;
+                end else begin
+                    // two seconds mismatches in a row; step the clock
+                    sec_mismatch_reg <= 1'b0;
 
-                {ts_ns_inc_next, ts_fns_inc_next} = {ts_ns_sync_reg, ts_fns_sync_reg} + {period_ns_reg, period_fns_reg};
-                {ts_ns_ovf_next, ts_fns_ovf_next} = {ts_ns_sync_reg, ts_fns_sync_reg} + {period_ns_reg, period_fns_reg} - {31'd1_000_000_000, {FNS_WIDTH{1'b0}}};
-                ts_s_next = ts_s_sync_reg;
-                ts_ns_next = ts_ns_sync_reg;
-                ts_fns_next = ts_fns_sync_reg;
-                ts_step_next = 1;
+                    {ts_ns_inc_reg, ts_fns_inc_reg} <= (FNS_WIDTH > 16 ? mem_read_data_reg[45:0] << (FNS_WIDTH-16) : mem_read_data_reg[45:0] >> (16-FNS_WIDTH)) + {period_ns_reg, period_fns_reg};
+                    {ts_ns_ovf_reg, ts_fns_ovf_reg} <= (FNS_WIDTH > 16 ? mem_read_data_reg[45:0] << (FNS_WIDTH-16) : mem_read_data_reg[45:0] >> (16-FNS_WIDTH)) + {period_ns_reg, period_fns_reg} - {31'd1_000_000_000, {FNS_WIDTH{1'b0}}};
+                    ts_s_reg <= mem_read_data_reg[95:48];
+                    ts_ns_reg <= mem_read_data_reg[45:16];
+                    ts_fns_reg <= FNS_WIDTH > 16 ? mem_read_data_reg[15:0] << (FNS_WIDTH-16) : mem_read_data_reg[15:0] >> (16-FNS_WIDTH);
+                    ts_step_reg <= 1;
+                end
             end else begin
                 // compute difference
-                sec_mismatch_next = 1'b0;
-                diff_valid_next = 1'b1;
-                ts_s_diff_next = ts_s_sync_reg - dest_ts_s_capt_reg;
-                {ts_ns_diff_next, ts_fns_diff_next} = {ts_ns_sync_reg, ts_fns_sync_reg} - {dest_ts_ns_capt_reg, dest_ts_fns_capt_reg};
+                sec_mismatch_reg <= 1'b0;
+                diff_valid_reg <= 1'b1;
+                {ts_ns_diff_reg, ts_fns_diff_reg} <= {ts_ns_reg, ts_fns_reg} - (FNS_WIDTH > 16 ? mem_read_data_reg[45:0] << (FNS_WIDTH-16) : mem_read_data_reg[45:0] >> (16-FNS_WIDTH));
             end
         end else if (TS_WIDTH == 64) begin
-            if (ts_step_sync_reg || sec_mismatch_reg) begin
-                // input stepped
-                sec_mismatch_next = 1'b0;
+            if (mem_read_data_reg[63:48] != ts_ns_reg[47:32]) begin
+                // high-order bits don't match
+                if (!sec_mismatch_reg) begin
+                    // ignore the first time
+                    sec_mismatch_reg <= 1'b1;
+                end else begin
+                    // two seconds mismatches in a row; step the clock
+                    sec_mismatch_reg <= 1'b0;
 
-                ts_ns_next = ts_ns_sync_reg;
-                ts_fns_next = ts_fns_sync_reg;
-                ts_step_next = 1;
+                    ts_ns_reg <= mem_read_data_reg[63:16];
+                    ts_fns_reg <= FNS_WIDTH > 16 ? mem_read_data_reg[15:0] << (FNS_WIDTH-16) : mem_read_data_reg[15:0] >> (16-FNS_WIDTH);
+                    ts_step_reg <= 1;
+                end
             end else begin
                 // compute difference
-                sec_mismatch_next = 1'b0;
-                diff_valid_next = 1'b1;
-                {ts_ns_diff_next, ts_fns_diff_next} = {ts_ns_sync_reg, ts_fns_sync_reg} - {dest_ts_ns_capt_reg, dest_ts_fns_capt_reg};
+                sec_mismatch_reg <= 1'b0;
+                diff_valid_reg <= 1'b1;
+                {ts_ns_diff_reg, ts_fns_diff_reg} <= {ts_ns_reg, ts_fns_reg} - (FNS_WIDTH > 16 ? mem_read_data_reg[63:0] << (FNS_WIDTH-16) : mem_read_data_reg[63:0] >> (16-FNS_WIDTH));
             end
         end
-    end
-
-    if (diff_valid_reg) begin
-        // seconds field correction
-        if (TS_WIDTH == 96) begin
-            if ($signed(ts_s_diff_reg) == 0 && ($signed(ts_ns_diff_reg[30:16]) == 0 || $signed(ts_ns_diff_reg[30:16]) == -1)) begin
-                // difference is small and no seconds difference; slew
-                ts_ns_diff_corr_next = ts_ns_diff_reg[16:0];
-                ts_fns_diff_corr_next = ts_fns_diff_reg;
-                diff_corr_valid_next = 1'b1;
-            end else if ($signed(ts_s_diff_reg) == 1 && ts_ns_diff_reg[30:16] == 15'h4465) begin
-                // difference is small with 1 second difference; adjust and slew
-                ts_ns_diff_corr_next = ts_ns_diff_reg[16:0] + 17'h0ca00;
-                ts_fns_diff_corr_next = ts_fns_diff_reg;
-                diff_corr_valid_next = 1'b1;
-            end else if ($signed(ts_s_diff_reg) == -1 && ts_ns_diff_reg[30:16] == 15'h3b9a) begin
-                // difference is small with 1 second difference; adjust and slew
-                ts_ns_diff_corr_next = ts_ns_diff_reg[16:0] - 17'h0ca00;
-                ts_fns_diff_corr_next = ts_fns_diff_reg;
-                diff_corr_valid_next = 1'b1;
-            end else begin
-                // difference is too large; step the clock
-                sec_mismatch_next = 1'b1;
-            end
-        end else if (TS_WIDTH == 64) begin
-            if ($signed(ts_ns_diff_reg[47:16]) == 0 || $signed(ts_ns_diff_reg[47:16]) == -1) begin
-                // difference is small enough to slew
-                ts_ns_diff_corr_next = ts_ns_diff_reg[16:0];
-                ts_fns_diff_corr_next = ts_fns_diff_reg;
-                diff_corr_valid_next = 1'b1;
-            end else begin
-                // difference is too large; step the clock
-                sec_mismatch_next = 1'b1;
-            end
-        end
-    end
-
-    if (diff_corr_valid_reg) begin
+    end else if (diff_valid_reg) begin
+        // offset difference by FIFO delay
+        diff_offset_valid_reg <= 1'b1;
+        diff_valid_reg <= 1'b0;
+        {ts_ns_diff_reg, ts_fns_diff_reg} <= {ts_ns_diff_reg, ts_fns_diff_reg} - ({period_ns_reg, period_fns_reg} * 2**(LOG_RATE + LOG_FIFO_DEPTH));
+    end else if (diff_offset_valid_reg) begin
         // PI control
-
-        // time integral of error
-        if (ptp_locked_reg) begin
-            {ptp_ovf, time_err_int_next} = $signed({1'b0, time_err_int_reg}) + $signed({ts_ns_diff_corr_reg, ts_fns_diff_corr_reg});
+        diff_offset_valid_reg <= 1'b0;
+        if (($signed({ts_ns_diff_reg, ts_fns_diff_reg}) / 2**10) + ($signed(time_err_int_reg) / 2**16) > 4*2**16) begin
+            // limit positive adjustment
+            time_err_int_reg <= 0;
+            {period_ns_reg, period_fns_reg} <= $signed(OUTPUT_PERIOD_NS*2**16 + OUTPUT_PERIOD_FNS) - ({4'd4, {FNS_WIDTH{1'b0}}});
+        end else if (($signed({ts_ns_diff_reg, ts_fns_diff_reg}) / 2**10) + ($signed(time_err_int_reg) / 2**16) < -8*2**16) begin
+            // limit negative adjustment
+            time_err_int_reg <= 0;
+            {period_ns_reg, period_fns_reg} <= $signed(OUTPUT_PERIOD_NS*2**16 + OUTPUT_PERIOD_FNS) + ({4'd8, {FNS_WIDTH{1'b0}}});
         end else begin
-            {ptp_ovf, time_err_int_next} = $signed({1'b0, time_err_int_reg}) + ($signed({ts_ns_diff_corr_reg, ts_fns_diff_corr_reg}) * 2**3);
-        end
-
-        // saturate
-        if (ptp_ovf[1]) begin
-            // sign bit set indicating underflow across zero; saturate to zero
-            time_err_int_next = {TIME_ERR_INT_WIDTH{1'b0}};
-        end else if (ptp_ovf[0]) begin
-            // sign bit clear but carry bit set indicating overflow; saturate to all 1
-            time_err_int_next = {TIME_ERR_INT_WIDTH{1'b1}};
-        end
-
-        // compute output
-        if (ptp_locked_reg) begin
-            {ptp_ovf, period_ns_next, period_fns_next} = ($signed({1'b0, time_err_int_reg}) / 2**16) + ($signed({ts_ns_diff_corr_reg, ts_fns_diff_corr_reg}) / 2**10);
-        end else begin
-            {ptp_ovf, period_ns_next, period_fns_next} = ($signed({1'b0, time_err_int_reg}) / 2**16) + ($signed({ts_ns_diff_corr_reg, ts_fns_diff_corr_reg}) / 2**7);
-        end
-
-        // saturate
-        if (ptp_ovf[1]) begin
-            // sign bit set indicating underflow across zero; saturate to zero
-            {period_ns_next, period_fns_next} = {NS_WIDTH+FNS_WIDTH{1'b0}};
-        end else if (ptp_ovf[0]) begin
-            // sign bit clear but carry bit set indicating overflow; saturate to all 1
-            {period_ns_next, period_fns_next} = {NS_WIDTH+FNS_WIDTH{1'b1}};
-        end
-
-        // locked status
-        if ($signed(ts_ns_diff_corr_reg[17-1:4]) == 0 || $signed(ts_ns_diff_corr_reg[17-1:4]) == -1) begin
-            if (ptp_lock_count_reg == {PTP_LOCK_WIDTH{1'b1}}) begin
-                ptp_locked_next = 1'b1;
-            end else begin
-                ptp_lock_count_next = ptp_lock_count_reg + 1;
-            end
-        end else begin
-            ptp_lock_count_next = 0;
-            ptp_locked_next = 1'b0;
+            time_err_int_reg <= $signed(time_err_int_reg) + $signed({ts_ns_diff_reg, ts_fns_diff_reg});
+            {period_ns_reg, period_fns_reg} <= $signed(OUTPUT_PERIOD_NS*2**16 + OUTPUT_PERIOD_FNS) - ($signed({ts_ns_diff_reg, ts_fns_diff_reg}) / 2**10) - ($signed(time_err_int_reg) / 2**16);
         end
     end
-end
 
-always @(posedge output_clk) begin
-    period_ns_reg <= period_ns_next;
-    period_fns_reg <= period_fns_next;
-
-    ts_s_reg <= ts_s_next;
-    ts_ns_reg <= ts_ns_next;
-    ts_fns_reg <= ts_fns_next;
-    ts_ns_inc_reg <= ts_ns_inc_next;
-    ts_fns_inc_reg <= ts_fns_inc_next;
-    ts_ns_ovf_reg <= ts_ns_ovf_next;
-    ts_fns_ovf_reg <= ts_fns_ovf_next;
-
-    ts_step_reg <= ts_step_next;
-
-    sec_mismatch_reg <= sec_mismatch_next;
-    diff_valid_reg <= diff_valid_next;
-    diff_corr_valid_reg <= diff_corr_valid_next;
-
-    ts_s_diff_reg <= ts_s_diff_next;
-    ts_ns_diff_reg <= ts_ns_diff_next;
-    ts_fns_diff_reg <= ts_fns_diff_next;
-
-    ts_ns_diff_corr_reg <= ts_ns_diff_corr_next;
-    ts_fns_diff_corr_reg <= ts_fns_diff_corr_next;
-
-    time_err_int_reg <= time_err_int_next;
-
-    ptp_lock_count_reg <= ptp_lock_count_next;
-    ptp_locked_reg <= ptp_locked_next;
-
-    // PPS output
     if (TS_WIDTH == 96) begin
         pps_reg <= !ts_ns_ovf_reg[30];
     end else if (TS_WIDTH == 64) begin
@@ -661,8 +447,8 @@ always @(posedge output_clk) begin
     end
 
     if (output_rst) begin
-        period_ns_reg <= 0;
-        period_fns_reg <= 0;
+        period_ns_reg <= OUTPUT_PERIOD_NS;
+        period_fns_reg <= OUTPUT_PERIOD_FNS;
         ts_s_reg <= 0;
         ts_ns_reg <= 0;
         ts_fns_reg <= 0;
@@ -672,18 +458,7 @@ always @(posedge output_clk) begin
         ts_fns_ovf_reg <= {FNS_WIDTH{1'b1}};
         ts_step_reg <= 0;
         pps_reg <= 0;
-
-        sec_mismatch_reg <= 1'b0;
-        diff_valid_reg <= 1'b0;
-        diff_corr_valid_reg <= 1'b0;
-
-        time_err_int_reg <= 0;
-
-        ptp_lock_count_reg <= 0;
-        ptp_locked_reg <= 1'b0;
     end
 end
 
 endmodule
-
-`resetall

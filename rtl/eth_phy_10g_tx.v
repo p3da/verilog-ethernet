@@ -24,9 +24,7 @@ THE SOFTWARE.
 
 // Language: Verilog 2001
 
-`resetall
 `timescale 1ns / 1ps
-`default_nettype none
 
 /*
  * 10G Ethernet PHY TX
@@ -56,11 +54,6 @@ module eth_phy_10g_tx #
      */
     output wire [DATA_WIDTH-1:0] serdes_tx_data,
     output wire [HDR_WIDTH-1:0]  serdes_tx_hdr,
-
-    /*
-     * Status
-     */
-    output wire                  tx_bad_block,
 
     /*
      * Configuration
@@ -100,8 +93,7 @@ xgmii_baser_enc_inst (
     .xgmii_txd(xgmii_txd),
     .xgmii_txc(xgmii_txc),
     .encoded_tx_data(encoded_tx_data),
-    .encoded_tx_hdr(encoded_tx_hdr),
-    .tx_bad_block(tx_bad_block)
+    .encoded_tx_hdr(encoded_tx_hdr)
 );
 
 eth_phy_10g_tx_if #(
@@ -123,5 +115,3 @@ eth_phy_10g_tx_if_inst (
 );
 
 endmodule
-
-`resetall

@@ -24,9 +24,7 @@ THE SOFTWARE.
 
 // Language: Verilog 2001
 
-`resetall
 `timescale 1ns / 1ps
-`default_nettype none
 
 /*
  * AXI4-Stream Ethernet FCS checker
@@ -104,7 +102,7 @@ assign s_axis_tready = s_axis_tready_reg;
 assign busy = busy_reg;
 assign error_bad_fcs = error_bad_fcs_reg;
 
-ve_lfsr#(
+ve_lfsr #(
     .LFSR_WIDTH(32),
     .LFSR_POLY(32'h4c11db7),
     .LFSR_CONFIG("GALOIS"),
@@ -341,5 +339,3 @@ always @(posedge clk) begin
 end
 
 endmodule
-
-`resetall

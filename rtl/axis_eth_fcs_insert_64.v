@@ -24,9 +24,7 @@ THE SOFTWARE.
 
 // Language: Verilog 2001
 
-`resetall
 `timescale 1ns / 1ps
-`default_nettype none
 
 /*
  * AXI4-Stream Ethernet FCS inserter (64 bit datapath)
@@ -121,7 +119,7 @@ assign s_axis_tready = s_axis_tready_reg;
 
 assign busy = busy_reg;
 
-ve_lfsr#(
+ve_lfsr #(
     .LFSR_WIDTH(32),
     .LFSR_POLY(32'h4c11db7),
     .LFSR_CONFIG("GALOIS"),
@@ -137,7 +135,7 @@ eth_crc_8 (
     .state_out(crc_next0)
 );
 
-ve_lfsr#(
+ve_lfsr #(
     .LFSR_WIDTH(32),
     .LFSR_POLY(32'h4c11db7),
     .LFSR_CONFIG("GALOIS"),
@@ -153,7 +151,7 @@ eth_crc_16 (
     .state_out(crc_next1)
 );
 
-ve_lfsr#(
+ve_lfsr #(
     .LFSR_WIDTH(32),
     .LFSR_POLY(32'h4c11db7),
     .LFSR_CONFIG("GALOIS"),
@@ -169,7 +167,7 @@ eth_crc_24 (
     .state_out(crc_next2)
 );
 
-ve_lfsr#(
+ve_lfsr #(
     .LFSR_WIDTH(32),
     .LFSR_POLY(32'h4c11db7),
     .LFSR_CONFIG("GALOIS"),
@@ -185,7 +183,7 @@ eth_crc_32 (
     .state_out(crc_next3)
 );
 
-ve_lfsr#(
+ve_lfsr #(
     .LFSR_WIDTH(32),
     .LFSR_POLY(32'h4c11db7),
     .LFSR_CONFIG("GALOIS"),
@@ -201,7 +199,7 @@ eth_crc_40 (
     .state_out(crc_next4)
 );
 
-ve_lfsr#(
+ve_lfsr #(
     .LFSR_WIDTH(32),
     .LFSR_POLY(32'h4c11db7),
     .LFSR_CONFIG("GALOIS"),
@@ -217,7 +215,7 @@ eth_crc_48 (
     .state_out(crc_next5)
 );
 
-ve_lfsr#(
+ve_lfsr #(
     .LFSR_WIDTH(32),
     .LFSR_POLY(32'h4c11db7),
     .LFSR_CONFIG("GALOIS"),
@@ -233,7 +231,7 @@ eth_crc_56 (
     .state_out(crc_next6)
 );
 
-ve_lfsr#(
+ve_lfsr #(
     .LFSR_WIDTH(32),
     .LFSR_POLY(32'h4c11db7),
     .LFSR_CONFIG("GALOIS"),
@@ -717,5 +715,3 @@ always @(posedge clk) begin
 end
 
 endmodule
-
-`resetall

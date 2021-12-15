@@ -24,9 +24,7 @@ THE SOFTWARE.
 
 // Language: Verilog 2001
 
-`resetall
 `timescale 1ns / 1ps
-`default_nettype none
 
 /*
  * AXI4-Stream Ethernet FCS checker (64 bit datapath)
@@ -119,7 +117,7 @@ assign error_bad_fcs = error_bad_fcs_reg;
 
 wire last_cycle = state_reg == STATE_LAST;
 
-ve_lfsr#(
+ve_lfsr #(
     .LFSR_WIDTH(32),
     .LFSR_POLY(32'h4c11db7),
     .LFSR_CONFIG("GALOIS"),
@@ -135,7 +133,7 @@ eth_crc_8 (
     .state_out(crc_next0)
 );
 
-ve_lfsr#(
+ve_lfsr #(
     .LFSR_WIDTH(32),
     .LFSR_POLY(32'h4c11db7),
     .LFSR_CONFIG("GALOIS"),
@@ -151,7 +149,7 @@ eth_crc_16 (
     .state_out(crc_next1)
 );
 
-ve_lfsr#(
+ve_lfsr #(
     .LFSR_WIDTH(32),
     .LFSR_POLY(32'h4c11db7),
     .LFSR_CONFIG("GALOIS"),
@@ -167,7 +165,7 @@ eth_crc_24 (
     .state_out(crc_next2)
 );
 
-ve_lfsr#(
+ve_lfsr #(
     .LFSR_WIDTH(32),
     .LFSR_POLY(32'h4c11db7),
     .LFSR_CONFIG("GALOIS"),
@@ -183,7 +181,7 @@ eth_crc_32 (
     .state_out(crc_next3)
 );
 
-ve_lfsr#(
+ve_lfsr #(
     .LFSR_WIDTH(32),
     .LFSR_POLY(32'h4c11db7),
     .LFSR_CONFIG("GALOIS"),
@@ -478,5 +476,3 @@ always @(posedge clk) begin
 end
 
 endmodule
-
-`resetall

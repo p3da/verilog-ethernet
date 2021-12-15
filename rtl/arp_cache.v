@@ -24,9 +24,7 @@ THE SOFTWARE.
 
 // Language: Verilog 2001
 
-`resetall
 `timescale 1ns / 1ps
-`default_nettype none
 
 /*
  * ARP cache
@@ -101,7 +99,7 @@ assign query_response_mac = query_response_mac_reg;
 
 assign write_request_ready = write_request_ready_reg;
 
-ve_lfsr#(
+ve_lfsr #(
     .LFSR_WIDTH(32),
     .LFSR_POLY(32'h4c11db7),
     .LFSR_CONFIG("GALOIS"),
@@ -117,7 +115,7 @@ rd_hash (
     .state_out(query_request_hash)
 );
 
-ve_lfsr#(
+ve_lfsr #(
     .LFSR_WIDTH(32),
     .LFSR_POLY(32'h4c11db7),
     .LFSR_CONFIG("GALOIS"),
@@ -243,5 +241,3 @@ always @(posedge clk) begin
 end
 
 endmodule
-
-`resetall

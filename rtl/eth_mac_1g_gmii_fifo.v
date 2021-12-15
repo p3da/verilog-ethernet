@@ -24,9 +24,7 @@ THE SOFTWARE.
 
 // Language: Verilog 2001
 
-`resetall
 `timescale 1ns / 1ps
-`default_nettype none
 
 /*
  * 1G Ethernet MAC with GMII interface and TX and RX FIFOs
@@ -50,17 +48,13 @@ module eth_mac_1g_gmii_fifo #
     parameter ENABLE_PADDING = 1,
     parameter MIN_FRAME_LENGTH = 64,
     parameter TX_FIFO_DEPTH = 4096,
-    parameter TX_FIFO_PIPELINE_OUTPUT = 2,
     parameter TX_FRAME_FIFO = 1,
-    parameter TX_DROP_OVERSIZE_FRAME = TX_FRAME_FIFO,
-    parameter TX_DROP_BAD_FRAME = TX_DROP_OVERSIZE_FRAME,
+    parameter TX_DROP_BAD_FRAME = TX_FRAME_FIFO,
     parameter TX_DROP_WHEN_FULL = 0,
     parameter RX_FIFO_DEPTH = 4096,
-    parameter RX_FIFO_PIPELINE_OUTPUT = 2,
     parameter RX_FRAME_FIFO = 1,
-    parameter RX_DROP_OVERSIZE_FRAME = RX_FRAME_FIFO,
-    parameter RX_DROP_BAD_FRAME = RX_DROP_OVERSIZE_FRAME,
-    parameter RX_DROP_WHEN_FULL = RX_DROP_OVERSIZE_FRAME
+    parameter RX_DROP_BAD_FRAME = RX_FRAME_FIFO,
+    parameter RX_DROP_WHEN_FULL = RX_FRAME_FIFO
 )
 (
     input  wire                       gtx_clk,
@@ -182,7 +176,7 @@ always @(posedge rx_clk or posedge rx_rst) begin
     if (rx_rst) begin
         rx_sync_reg_1 <= 2'd0;
     end else begin
-        rx_sync_reg_1 <= rx_sync_reg_1 ^ {rx_error_bad_fcs_int, rx_error_bad_frame_int};
+        rx_sync_reg_1 <= rx_sync_reg_1 ^ {rx_error_bad_frame_int, rx_error_bad_frame_int};
     end
 end
 
@@ -260,11 +254,9 @@ axis_async_fifo_adapter #(
     .DEST_ENABLE(0),
     .USER_ENABLE(1),
     .USER_WIDTH(1),
-    .PIPELINE_OUTPUT(TX_FIFO_PIPELINE_OUTPUT),
     .FRAME_FIFO(TX_FRAME_FIFO),
     .USER_BAD_FRAME_VALUE(1'b1),
     .USER_BAD_FRAME_MASK(1'b1),
-    .DROP_OVERSIZE_FRAME(TX_DROP_OVERSIZE_FRAME),
     .DROP_BAD_FRAME(TX_DROP_BAD_FRAME),
     .DROP_WHEN_FULL(TX_DROP_WHEN_FULL)
 )
@@ -311,13 +303,11 @@ axis_async_fifo_adapter #(
     .DEST_ENABLE(0),
     .USER_ENABLE(1),
     .USER_WIDTH(1),
-    .PIPELINE_OUTPUT(RX_FIFO_PIPELINE_OUTPUT),
-    .FRAME_FIFO(RX_FRAME_FIFO),
+    .FRAME_FIFO(TX_FRAME_FIFO),
     .USER_BAD_FRAME_VALUE(1'b1),
     .USER_BAD_FRAME_MASK(1'b1),
-    .DROP_OVERSIZE_FRAME(RX_DROP_OVERSIZE_FRAME),
-    .DROP_BAD_FRAME(RX_DROP_BAD_FRAME),
-    .DROP_WHEN_FULL(RX_DROP_WHEN_FULL)
+    .DROP_BAD_FRAME(TX_DROP_BAD_FRAME),
+    .DROP_WHEN_FULL(TX_DROP_WHEN_FULL)
 )
 rx_fifo (
     // AXI input
@@ -352,5 +342,3 @@ rx_fifo (
 );
 
 endmodule
-
-`resetall

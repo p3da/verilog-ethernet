@@ -24,9 +24,7 @@ THE SOFTWARE.
 
 // Language: Verilog 2001
 
-`resetall
 `timescale 1ns / 1ps
-`default_nettype none
 
 /*
  * 10G Ethernet PHY RX IF
@@ -39,8 +37,7 @@ module eth_phy_10g_rx_if #
     parameter SCRAMBLER_DISABLE = 0,
     parameter PRBS31_ENABLE = 0,
     parameter SERDES_PIPELINE = 0,
-    parameter BITSLIP_HIGH_CYCLES = 1,
-    parameter BITSLIP_LOW_CYCLES = 8,
+    parameter SLIP_COUNT_WIDTH = 3,
     parameter COUNT_125US = 125000/6.4
 )
 (
@@ -59,13 +56,10 @@ module eth_phy_10g_rx_if #
     input  wire [DATA_WIDTH-1:0] serdes_rx_data,
     input  wire [HDR_WIDTH-1:0]  serdes_rx_hdr,
     output wire                  serdes_rx_bitslip,
-    output wire                  serdes_rx_reset_req,
 
     /*
      * Status
      */
-    input  wire                  rx_bad_block,
-    input  wire                  rx_sequence_error,
     output wire [6:0]            rx_error_count,
     output wire                  rx_block_lock,
     output wire                  rx_high_ber,
@@ -153,7 +147,7 @@ reg [5:0] rx_error_count_2_reg = 0;
 reg [5:0] rx_error_count_1_temp = 0;
 reg [5:0] rx_error_count_2_temp = 0;
 
-ve_lfsr#(
+ve_lfsr #(
     .LFSR_WIDTH(58),
     .LFSR_POLY(58'h8000000001),
     .LFSR_CONFIG("FIBONACCI"),
@@ -169,7 +163,7 @@ descrambler_inst (
     .state_out(scrambler_state)
 );
 
-ve_lfsr#(
+ve_lfsr #(
     .LFSR_WIDTH(31),
     .LFSR_POLY(31'h10000001),
     .LFSR_CONFIG("FIBONACCI"),
@@ -220,14 +214,11 @@ assign encoded_rx_hdr = encoded_rx_hdr_reg;
 assign rx_error_count = rx_error_count_reg;
 
 wire serdes_rx_bitslip_int;
-wire serdes_rx_reset_req_int;
 assign serdes_rx_bitslip = serdes_rx_bitslip_int && !(PRBS31_ENABLE && rx_prbs31_enable);
-assign serdes_rx_reset_req = serdes_rx_reset_req_int && !(PRBS31_ENABLE && rx_prbs31_enable);
 
 eth_phy_10g_rx_frame_sync #(
     .HDR_WIDTH(HDR_WIDTH),
-    .BITSLIP_HIGH_CYCLES(BITSLIP_HIGH_CYCLES),
-    .BITSLIP_LOW_CYCLES(BITSLIP_LOW_CYCLES)
+    .SLIP_COUNT_WIDTH(SLIP_COUNT_WIDTH)
 )
 eth_phy_10g_rx_frame_sync_inst (
     .clk(clk),
@@ -248,21 +239,4 @@ eth_phy_10g_rx_ber_mon_inst (
     .rx_high_ber(rx_high_ber)
 );
 
-eth_phy_10g_rx_watchdog #(
-    .HDR_WIDTH(HDR_WIDTH),
-    .COUNT_125US(COUNT_125US)
-)
-eth_phy_10g_rx_watchdog_inst (
-    .clk(clk),
-    .rst(rst),
-    .serdes_rx_hdr(serdes_rx_hdr_int),
-    .serdes_rx_reset_req(serdes_rx_reset_req_int),
-    .rx_bad_block(rx_bad_block),
-    .rx_sequence_error(rx_sequence_error),
-    .rx_block_lock(rx_block_lock),
-    .rx_high_ber(rx_high_ber)
-);
-
 endmodule
-
-`resetall

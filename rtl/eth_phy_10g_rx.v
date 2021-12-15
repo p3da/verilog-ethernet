@@ -24,9 +24,7 @@ THE SOFTWARE.
 
 // Language: Verilog 2001
 
-`resetall
 `timescale 1ns / 1ps
-`default_nettype none
 
 /*
  * 10G Ethernet PHY RX
@@ -40,8 +38,7 @@ module eth_phy_10g_rx #
     parameter SCRAMBLER_DISABLE = 0,
     parameter PRBS31_ENABLE = 0,
     parameter SERDES_PIPELINE = 0,
-    parameter BITSLIP_HIGH_CYCLES = 1,
-    parameter BITSLIP_LOW_CYCLES = 8,
+    parameter SLIP_COUNT_WIDTH = 3,
     parameter COUNT_125US = 125000/6.4
 )
 (
@@ -60,14 +57,12 @@ module eth_phy_10g_rx #
     input  wire [DATA_WIDTH-1:0] serdes_rx_data,
     input  wire [HDR_WIDTH-1:0]  serdes_rx_hdr,
     output wire                  serdes_rx_bitslip,
-    output wire                  serdes_rx_reset_req,
 
     /*
      * Status
      */
     output wire [6:0]            rx_error_count,
     output wire                  rx_bad_block,
-    output wire                  rx_sequence_error,
     output wire                  rx_block_lock,
     output wire                  rx_high_ber,
 
@@ -105,8 +100,7 @@ eth_phy_10g_rx_if #(
     .SCRAMBLER_DISABLE(SCRAMBLER_DISABLE),
     .PRBS31_ENABLE(PRBS31_ENABLE),
     .SERDES_PIPELINE(SERDES_PIPELINE),
-    .BITSLIP_HIGH_CYCLES(BITSLIP_HIGH_CYCLES),
-    .BITSLIP_LOW_CYCLES(BITSLIP_LOW_CYCLES),
+    .SLIP_COUNT_WIDTH(SLIP_COUNT_WIDTH),
     .COUNT_125US(COUNT_125US)
 )
 eth_phy_10g_rx_if_inst (
@@ -117,9 +111,6 @@ eth_phy_10g_rx_if_inst (
     .serdes_rx_data(serdes_rx_data),
     .serdes_rx_hdr(serdes_rx_hdr),
     .serdes_rx_bitslip(serdes_rx_bitslip),
-    .serdes_rx_reset_req(serdes_rx_reset_req),
-    .rx_bad_block(rx_bad_block),
-    .rx_sequence_error(rx_sequence_error),
     .rx_error_count(rx_error_count),
     .rx_block_lock(rx_block_lock),
     .rx_high_ber(rx_high_ber),
@@ -138,10 +129,7 @@ xgmii_baser_dec_inst (
     .encoded_rx_hdr(encoded_rx_hdr),
     .xgmii_rxd(xgmii_rxd),
     .xgmii_rxc(xgmii_rxc),
-    .rx_bad_block(rx_bad_block),
-    .rx_sequence_error(rx_sequence_error)
+    .rx_bad_block(rx_bad_block)
 );
 
 endmodule
-
-`resetall

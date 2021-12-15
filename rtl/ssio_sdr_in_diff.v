@@ -24,9 +24,7 @@ THE SOFTWARE.
 
 // Language: Verilog 2001
 
-`resetall
 `timescale 1ns / 1ps
-`default_nettype none
 
 /*
  * Generic source synchronous SDR input
@@ -113,5 +111,3 @@ ssio_ddr_in_inst(
 );
 
 endmodule
-
-`resetall

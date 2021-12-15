@@ -24,9 +24,7 @@ THE SOFTWARE.
 
 // Language: Verilog 2001
 
-`resetall
 `timescale 1ns / 1ps
-`default_nettype none
 
 /*
  * 1G Ethernet MAC with RGMII interface
@@ -40,13 +38,25 @@ module eth_mac_1g_rgmii #
     // Use IODDR2 for Spartan-6
     parameter IODDR_STYLE = "IODDR2",
     // Clock input style ("BUFG", "BUFR", "BUFIO", "BUFIO2")
-    // Use BUFR for Virtex-6, 7-series
-    // Use BUFG for Virtex-5, Spartan-6, Ultrascale
-    parameter CLOCK_INPUT_STYLE = "BUFG",
+    // Use BUFR for Virtex-5, Virtex-6, 7-series
+    // Use BUFG for Ultrascale
+    // Use BUFIO2 for Spartan-6
+    parameter CLOCK_INPUT_STYLE = "BUFIO2",
     // Use 90 degree clock for RGMII transmit ("TRUE", "FALSE")
     parameter USE_CLK90 = "TRUE",
     parameter ENABLE_PADDING = 1,
-    parameter MIN_FRAME_LENGTH = 64
+    parameter MIN_FRAME_LENGTH = 64,
+	parameter PTP_PERIOD_NS = 4'h6,
+    parameter PTP_PERIOD_FNS = 16'h6666,
+    parameter TX_PTP_TS_ENABLE = 0,
+    parameter TX_PTP_TS_WIDTH = 96,
+    parameter TX_PTP_TAG_ENABLE = TX_PTP_TS_ENABLE,
+    parameter TX_PTP_TAG_WIDTH = 16,
+    parameter RX_PTP_TS_ENABLE = 0,
+    parameter RX_PTP_TS_WIDTH = 96,
+    parameter TX_USER_WIDTH = (TX_PTP_TAG_ENABLE ? TX_PTP_TAG_WIDTH : 0) + 1,
+    parameter RX_USER_WIDTH = (RX_PTP_TS_ENABLE ? RX_PTP_TS_WIDTH : 0) + 1
+
 )
 (
     input  wire        gtx_clk,
@@ -64,7 +74,7 @@ module eth_mac_1g_rgmii #
     input  wire        tx_axis_tvalid,
     output wire        tx_axis_tready,
     input  wire        tx_axis_tlast,
-    input  wire        tx_axis_tuser,
+    input  wire [TX_USER_WIDTH-1:0]        tx_axis_tuser,
 
     /*
      * AXI output
@@ -72,7 +82,7 @@ module eth_mac_1g_rgmii #
     output wire [7:0]  rx_axis_tdata,
     output wire        rx_axis_tvalid,
     output wire        rx_axis_tlast,
-    output wire        rx_axis_tuser,
+    output wire [RX_USER_WIDTH-1:0]       rx_axis_tuser,
 
     /*
      * RGMII interface
@@ -83,6 +93,15 @@ module eth_mac_1g_rgmii #
     output wire        rgmii_tx_clk,
     output wire [3:0]  rgmii_txd,
     output wire        rgmii_tx_ctl,
+	
+    /*
+     * PTP
+     */
+    input  wire [TX_PTP_TS_WIDTH-1:0]   tx_ptp_ts,
+    input  wire [RX_PTP_TS_WIDTH-1:0]   rx_ptp_ts,
+    output wire [TX_PTP_TS_WIDTH-1:0]   tx_axis_ptp_ts,
+    output wire [TX_PTP_TAG_WIDTH-1:0]  tx_axis_ptp_ts_tag,
+    output wire                         tx_axis_ptp_ts_valid,
 
     /*
      * Status
@@ -95,6 +114,8 @@ module eth_mac_1g_rgmii #
     /*
      * Configuration
      */
+    input  wire [1:0]  speed_sel,
+    input  wire        aneg,
     input  wire [7:0]  ifg_delay
 );
 
@@ -153,27 +174,36 @@ always @(posedge gtx_clk) begin
             rx_speed_count_2 <= rx_speed_count_2 + 1;
         end
 
-        if (&rx_speed_count_1) begin
-            // reference count overflow - 10M
-            rx_speed_count_1 <= 0;
-            rx_speed_count_2 <= 0;
-            speed_reg <= 2'b00;
-            mii_select_reg <= 1'b1;
-        end
-
-        if (&rx_speed_count_2) begin
-            // prescaled count overflow - 100M or 1000M
-            rx_speed_count_1 <= 0;
-            rx_speed_count_2 <= 0;
-            if (rx_speed_count_1[6:5]) begin
-                // large reference count - 100M
-                speed_reg <= 2'b01;
+        if (aneg) begin
+            if (&rx_speed_count_1) begin
+                // reference count overflow - 10M
+                rx_speed_count_1 <= 0;
+                rx_speed_count_2 <= 0;
+                speed_reg <= 2'b00;
+                mii_select_reg <= 1'b1;
+            end
+    
+            if (&rx_speed_count_2) begin
+                // prescaled count overflow - 100M or 1000M
+                rx_speed_count_1 <= 0;
+                rx_speed_count_2 <= 0;
+                if (rx_speed_count_1[6:5]) begin
+                    // large reference count - 100M
+                    speed_reg <= 2'b01;
+                    mii_select_reg <= 1'b1;
+                end else begin
+                    // small reference count - 1000M
+                    speed_reg <= 2'b10;
+                    mii_select_reg <= 1'b0;
+                end
+            end
+        end else begin
+            speed_reg <= speed_sel;
+            if (!speed_sel[1]) begin
                 mii_select_reg <= 1'b1;
             end else begin
-                // small reference count - 1000M
-                speed_reg <= 2'b10;
                 mii_select_reg <= 1'b0;
-            end
+            end    
         end
     end
 end
@@ -215,38 +245,56 @@ rgmii_phy_if_inst (
 
 eth_mac_1g #(
     .ENABLE_PADDING(ENABLE_PADDING),
-    .MIN_FRAME_LENGTH(MIN_FRAME_LENGTH)
+    .MIN_FRAME_LENGTH(MIN_FRAME_LENGTH),
+	.TX_PTP_TS_ENABLE(TX_PTP_TS_ENABLE),
+    .TX_PTP_TS_WIDTH(TX_PTP_TS_WIDTH),
+    .TX_PTP_TAG_ENABLE(TX_PTP_TAG_ENABLE),
+    .TX_PTP_TAG_WIDTH(TX_PTP_TAG_WIDTH),
+    .RX_PTP_TS_ENABLE(RX_PTP_TS_ENABLE),
+    .RX_PTP_TS_WIDTH(RX_PTP_TS_WIDTH),
+    .TX_USER_WIDTH(TX_USER_WIDTH),
+    .RX_USER_WIDTH(RX_USER_WIDTH)
 )
 eth_mac_1g_inst (
     .tx_clk(tx_clk),
     .tx_rst(tx_rst),
     .rx_clk(rx_clk),
     .rx_rst(rx_rst),
+	
     .tx_axis_tdata(tx_axis_tdata),
     .tx_axis_tvalid(tx_axis_tvalid),
     .tx_axis_tready(tx_axis_tready),
     .tx_axis_tlast(tx_axis_tlast),
     .tx_axis_tuser(tx_axis_tuser),
+	
     .rx_axis_tdata(rx_axis_tdata),
     .rx_axis_tvalid(rx_axis_tvalid),
     .rx_axis_tlast(rx_axis_tlast),
     .rx_axis_tuser(rx_axis_tuser),
+	
     .gmii_rxd(mac_gmii_rxd),
     .gmii_rx_dv(mac_gmii_rx_dv),
     .gmii_rx_er(mac_gmii_rx_er),
     .gmii_txd(mac_gmii_txd),
     .gmii_tx_en(mac_gmii_tx_en),
     .gmii_tx_er(mac_gmii_tx_er),
+	
+	.tx_ptp_ts(tx_ptp_ts),
+    .rx_ptp_ts(rx_ptp_ts),
+    .tx_axis_ptp_ts(tx_axis_ptp_ts),
+    .tx_axis_ptp_ts_tag(tx_axis_ptp_ts_tag),
+    .tx_axis_ptp_ts_valid(tx_axis_ptp_ts_valid),
+	
     .rx_clk_enable(1'b1),
     .tx_clk_enable(mac_gmii_tx_clk_en),
     .rx_mii_select(rx_mii_select_sync[1]),
     .tx_mii_select(tx_mii_select_sync[1]),
+	
     .tx_error_underflow(tx_error_underflow),
     .rx_error_bad_frame(rx_error_bad_frame),
     .rx_error_bad_fcs(rx_error_bad_fcs),
+	
     .ifg_delay(ifg_delay)
 );
 
 endmodule
-
-`resetall

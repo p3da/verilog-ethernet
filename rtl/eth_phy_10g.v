@@ -24,9 +24,7 @@ THE SOFTWARE.
 
 // Language: Verilog 2001
 
-`resetall
 `timescale 1ns / 1ps
-`default_nettype none
 
 /*
  * 10G Ethernet PHY
@@ -41,8 +39,7 @@ module eth_phy_10g #
     parameter PRBS31_ENABLE = 0,
     parameter TX_SERDES_PIPELINE = 0,
     parameter RX_SERDES_PIPELINE = 0,
-    parameter BITSLIP_HIGH_CYCLES = 1,
-    parameter BITSLIP_LOW_CYCLES = 8,
+    parameter SLIP_COUNT_WIDTH = 3,
     parameter COUNT_125US = 125000/6.4
 )
 (
@@ -67,15 +64,12 @@ module eth_phy_10g #
     input  wire [DATA_WIDTH-1:0] serdes_rx_data,
     input  wire [HDR_WIDTH-1:0]  serdes_rx_hdr,
     output wire                  serdes_rx_bitslip,
-    output wire                  serdes_rx_reset_req,
 
     /*
      * Status
      */
-    output wire                  tx_bad_block,
     output wire [6:0]            rx_error_count,
     output wire                  rx_bad_block,
-    output wire                  rx_sequence_error,
     output wire                  rx_block_lock,
     output wire                  rx_high_ber,
 
@@ -94,8 +88,7 @@ eth_phy_10g_rx #(
     .SCRAMBLER_DISABLE(SCRAMBLER_DISABLE),
     .PRBS31_ENABLE(PRBS31_ENABLE),
     .SERDES_PIPELINE(RX_SERDES_PIPELINE),
-    .BITSLIP_HIGH_CYCLES(BITSLIP_HIGH_CYCLES),
-    .BITSLIP_LOW_CYCLES(BITSLIP_LOW_CYCLES),
+    .SLIP_COUNT_WIDTH(SLIP_COUNT_WIDTH),
     .COUNT_125US(COUNT_125US)
 )
 eth_phy_10g_rx_inst (
@@ -106,10 +99,8 @@ eth_phy_10g_rx_inst (
     .serdes_rx_data(serdes_rx_data),
     .serdes_rx_hdr(serdes_rx_hdr),
     .serdes_rx_bitslip(serdes_rx_bitslip),
-    .serdes_rx_reset_req(serdes_rx_reset_req),
     .rx_error_count(rx_error_count),
     .rx_bad_block(rx_bad_block),
-    .rx_sequence_error(rx_sequence_error),
     .rx_block_lock(rx_block_lock),
     .rx_high_ber(rx_high_ber),
     .rx_prbs31_enable(rx_prbs31_enable)
@@ -131,10 +122,7 @@ eth_phy_10g_tx_inst (
     .xgmii_txc(xgmii_txc),
     .serdes_tx_data(serdes_tx_data),
     .serdes_tx_hdr(serdes_tx_hdr),
-    .tx_bad_block(tx_bad_block),
     .tx_prbs31_enable(tx_prbs31_enable)
 );
 
 endmodule
-
-`resetall

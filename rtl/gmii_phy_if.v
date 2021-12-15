@@ -24,9 +24,7 @@ THE SOFTWARE.
 
 // Language: Verilog 2001
 
-`resetall
 `timescale 1ns / 1ps
-`default_nettype none
 
 /*
  * GMII PHY interface
@@ -148,5 +146,3 @@ always @(posedge mac_gmii_rx_clk or posedge rst) begin
 end
 
 endmodule
-
-`resetall

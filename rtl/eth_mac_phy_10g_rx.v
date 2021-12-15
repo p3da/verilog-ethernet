@@ -24,9 +24,7 @@ THE SOFTWARE.
 
 // Language: Verilog 2001
 
-`resetall
 `timescale 1ns / 1ps
-`default_nettype none
 
 /*
  * 10G Ethernet MAC/PHY combination
@@ -45,8 +43,7 @@ module eth_mac_phy_10g_rx #
     parameter SCRAMBLER_DISABLE = 0,
     parameter PRBS31_ENABLE = 0,
     parameter SERDES_PIPELINE = 0,
-    parameter BITSLIP_HIGH_CYCLES = 1,
-    parameter BITSLIP_LOW_CYCLES = 8,
+    parameter SLIP_COUNT_WIDTH = 3,
     parameter COUNT_125US = 125000/6.4
 )
 (
@@ -119,8 +116,7 @@ eth_phy_10g_rx_if #(
     .SCRAMBLER_DISABLE(SCRAMBLER_DISABLE),
     .PRBS31_ENABLE(PRBS31_ENABLE),
     .SERDES_PIPELINE(SERDES_PIPELINE),
-    .BITSLIP_HIGH_CYCLES(BITSLIP_HIGH_CYCLES),
-    .BITSLIP_LOW_CYCLES(BITSLIP_LOW_CYCLES),
+    .SLIP_COUNT_WIDTH(SLIP_COUNT_WIDTH),
     .COUNT_125US(COUNT_125US)
 )
 eth_phy_10g_rx_if_inst (
@@ -165,5 +161,3 @@ axis_baser_rx_inst (
 );
 
 endmodule
-
-`resetall

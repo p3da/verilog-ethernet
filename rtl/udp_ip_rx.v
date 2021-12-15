@@ -24,9 +24,7 @@ THE SOFTWARE.
 
 // Language: Verilog 2001
 
-`resetall
 `timescale 1ns / 1ps
-`default_nettype none
 
 /*
  * UDP ethernet frame receiver (IP frame in, UDP frame out)
@@ -532,5 +530,3 @@ always @(posedge clk) begin
 end
 
 endmodule
-
-`resetall

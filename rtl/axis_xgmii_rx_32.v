@@ -24,9 +24,7 @@ THE SOFTWARE.
 
 // Language: Verilog 2001
 
-`resetall
 `timescale 1ns / 1ps
-`default_nettype none
 
 /*
  * AXI4-Stream XGMII frame receiver (XGMII in, AXI out)
@@ -157,7 +155,7 @@ assign error_bad_fcs = error_bad_fcs_reg;
 
 wire last_cycle = state_reg == STATE_LAST;
 
-ve_lfsr#(
+ve_lfsr #(
     .LFSR_WIDTH(32),
     .LFSR_POLY(32'h4c11db7),
     .LFSR_CONFIG("GALOIS"),
@@ -173,7 +171,7 @@ eth_crc_8 (
     .state_out(crc_next0)
 );
 
-ve_lfsr#(
+ve_lfsr #(
     .LFSR_WIDTH(32),
     .LFSR_POLY(32'h4c11db7),
     .LFSR_CONFIG("GALOIS"),
@@ -189,7 +187,7 @@ eth_crc_16 (
     .state_out(crc_next1)
 );
 
-ve_lfsr#(
+ve_lfsr #(
     .LFSR_WIDTH(32),
     .LFSR_POLY(32'h4c11db7),
     .LFSR_CONFIG("GALOIS"),
@@ -205,7 +203,7 @@ eth_crc_24 (
     .state_out(crc_next2)
 );
 
-ve_lfsr#(
+ve_lfsr #(
     .LFSR_WIDTH(32),
     .LFSR_POLY(32'h4c11db7),
     .LFSR_CONFIG("GALOIS"),
@@ -375,46 +373,6 @@ always @* begin
 end
 
 always @(posedge clk) begin
-    state_reg <= state_next;
-
-    m_axis_tdata_reg <= m_axis_tdata_next;
-    m_axis_tkeep_reg <= m_axis_tkeep_next;
-    m_axis_tvalid_reg <= m_axis_tvalid_next;
-    m_axis_tlast_reg <= m_axis_tlast_next;
-    m_axis_tuser_reg <= m_axis_tuser_next;
-
-    start_packet_reg <= start_packet_next;
-    error_bad_frame_reg <= error_bad_frame_next;
-    error_bad_fcs_reg <= error_bad_fcs_next;
-
-    ptp_ts_reg <= ptp_ts_next;
-
-    last_cycle_tkeep_reg <= last_cycle_tkeep_next;
-
-    for (i = 0; i < 4; i = i + 1) begin
-        detect_term[i] <= xgmii_rxc[i] && (xgmii_rxd[i*8 +: 8] == XGMII_TERM);
-    end
-
-    detect_term_save <= detect_term;
-
-    if (reset_crc) begin
-        crc_state <= 32'hFFFFFFFF;
-    end else begin
-        crc_state <= crc_next3;
-    end
-
-    crc_valid0_save <= crc_valid0;
-    crc_valid1_save <= crc_valid1;
-    crc_valid2_save <= crc_valid2;
-    crc_valid3_save <= crc_valid3;
-
-    xgmii_rxd_d0 <= xgmii_rxd;
-    xgmii_rxc_d0 <= xgmii_rxc;
-    xgmii_rxd_d1 <= xgmii_rxd_d0;
-    xgmii_rxc_d1 <= xgmii_rxc_d0;
-    xgmii_rxc_d2 <= xgmii_rxc_d1;
-    xgmii_rxd_d2 <= xgmii_rxd_d1;
-
     if (rst) begin
         state_reg <= STATE_IDLE;
 
@@ -428,9 +386,50 @@ always @(posedge clk) begin
 
         xgmii_rxc_d0 <= {CTRL_WIDTH{1'b0}};
         xgmii_rxc_d1 <= {CTRL_WIDTH{1'b0}};
+    end else begin
+        state_reg <= state_next;
+
+        m_axis_tvalid_reg <= m_axis_tvalid_next;
+
+        start_packet_reg <= start_packet_next;
+        error_bad_frame_reg <= error_bad_frame_next;
+        error_bad_fcs_reg <= error_bad_fcs_next;
+
+        xgmii_rxc_d0 <= xgmii_rxc;
+        xgmii_rxc_d1 <= xgmii_rxc_d0;
+        xgmii_rxc_d2 <= xgmii_rxc_d1;
+
+        // datapath
+        if (reset_crc) begin
+            crc_state <= 32'hFFFFFFFF;
+        end else begin
+            crc_state <= crc_next3;
+        end
     end
+
+    m_axis_tdata_reg <= m_axis_tdata_next;
+    m_axis_tkeep_reg <= m_axis_tkeep_next;
+    m_axis_tlast_reg <= m_axis_tlast_next;
+    m_axis_tuser_reg <= m_axis_tuser_next;
+
+    ptp_ts_reg <= ptp_ts_next;
+
+    last_cycle_tkeep_reg <= last_cycle_tkeep_next;
+
+    for (i = 0; i < 4; i = i + 1) begin
+        detect_term[i] <= xgmii_rxc[i] && (xgmii_rxd[i*8 +: 8] == XGMII_TERM);
+    end
+
+    detect_term_save <= detect_term;
+
+    crc_valid0_save <= crc_valid0;
+    crc_valid1_save <= crc_valid1;
+    crc_valid2_save <= crc_valid2;
+    crc_valid3_save <= crc_valid3;
+
+    xgmii_rxd_d0 <= xgmii_rxd;
+    xgmii_rxd_d1 <= xgmii_rxd_d0;
+    xgmii_rxd_d2 <= xgmii_rxd_d1;
 end
 
 endmodule
-
-`resetall

@@ -24,9 +24,7 @@ THE SOFTWARE.
 
 // Language: Verilog 2001
 
-`resetall
 `timescale 1ns / 1ps
-`default_nettype none
 
 /*
  * UDP arbitrated multiplexer
@@ -43,10 +41,10 @@ module udp_arb_mux #
     parameter DEST_WIDTH = 8,
     parameter USER_ENABLE = 1,
     parameter USER_WIDTH = 1,
-    // select round robin arbitration
-    parameter ARB_TYPE_ROUND_ROBIN = 0,
-    // LSB priority selection
-    parameter ARB_LSB_HIGH_PRIORITY = 1
+    // arbitration type: "PRIORITY" or "ROUND_ROBIN"
+    parameter ARB_TYPE = "PRIORITY",
+    // LSB priority: "LOW", "HIGH"
+    parameter LSB_PRIORITY = "HIGH"
 )
 (
     input  wire                          clk,
@@ -125,7 +123,7 @@ parameter CL_S_COUNT = $clog2(S_COUNT);
 
 reg frame_reg = 1'b0, frame_next;
 
-reg [S_COUNT-1:0] s_udp_hdr_ready_reg = {S_COUNT{1'b0}}, s_udp_hdr_ready_next;
+reg s_udp_hdr_ready_mask_reg = 1'b0, s_udp_hdr_ready_mask_next;
 
 reg m_udp_hdr_valid_reg = 1'b0, m_udp_hdr_valid_next;
 reg [47:0] m_eth_dest_mac_reg = 48'd0, m_eth_dest_mac_next;
@@ -166,7 +164,7 @@ reg  [DEST_WIDTH-1:0] m_udp_payload_axis_tdest_int;
 reg  [USER_WIDTH-1:0] m_udp_payload_axis_tuser_int;
 wire                  m_udp_payload_axis_tready_int_early;
 
-assign s_udp_hdr_ready = s_udp_hdr_ready_reg;
+assign s_udp_hdr_ready = (!s_udp_hdr_ready_mask_reg && grant_valid) << grant_encoded;
 
 assign s_udp_payload_axis_tready = (m_udp_payload_axis_tready_int_reg && grant_valid) << grant_encoded;
 
@@ -205,10 +203,9 @@ wire [USER_WIDTH-1:0] current_s_tuser  = s_udp_payload_axis_tuser[grant_encoded*
 // arbiter instance
 arbiter #(
     .PORTS(S_COUNT),
-    .ARB_TYPE_ROUND_ROBIN(ARB_TYPE_ROUND_ROBIN),
-    .ARB_BLOCK(1),
-    .ARB_BLOCK_ACK(1),
-    .ARB_LSB_HIGH_PRIORITY(ARB_LSB_HIGH_PRIORITY)
+    .TYPE(ARB_TYPE),
+    .BLOCK("ACKNOWLEDGE"),
+    .LSB_PRIORITY(LSB_PRIORITY)
 )
 arb_inst (
     .clk(clk),
@@ -226,7 +223,7 @@ assign acknowledge = grant & s_udp_payload_axis_tvalid & s_udp_payload_axis_trea
 always @* begin
     frame_next = frame_reg;
 
-    s_udp_hdr_ready_next = {S_COUNT{1'b0}};
+    s_udp_hdr_ready_mask_next = s_udp_hdr_ready_mask_reg;
 
     m_udp_hdr_valid_next = m_udp_hdr_valid_reg && !m_udp_hdr_ready;
     m_eth_dest_mac_next = m_eth_dest_mac_reg;
@@ -254,14 +251,15 @@ always @* begin
         // end of frame detection
         if (s_udp_payload_axis_tlast[grant_encoded]) begin
             frame_next = 1'b0;
+            s_udp_hdr_ready_mask_next = 1'b0;
         end
     end
 
-    if (!frame_reg && grant_valid && (m_udp_hdr_ready || !m_udp_hdr_valid)) begin
+    if (!frame_reg && grant_valid) begin
         // start of frame
         frame_next = 1'b1;
 
-        s_udp_hdr_ready_next = grant;
+        s_udp_hdr_ready_mask_next = 1'b1;
 
         m_udp_hdr_valid_next = 1'b1;
         m_eth_dest_mac_next = s_eth_dest_mac[grant_encoded*48 +: 48];
@@ -297,11 +295,16 @@ always @* begin
 end
 
 always @(posedge clk) begin
-    frame_reg <= frame_next;
+    if (rst) begin
+        frame_reg <= 1'b0;
+        s_udp_hdr_ready_mask_reg <= 1'b0;
+        m_udp_hdr_valid_reg <= 1'b0;
+    end else begin
+        frame_reg <= frame_next;
+        s_udp_hdr_ready_mask_reg <= s_udp_hdr_ready_mask_next;
+        m_udp_hdr_valid_reg <= m_udp_hdr_valid_next;
+    end
 
-    s_udp_hdr_ready_reg <= s_udp_hdr_ready_next;
-
-    m_udp_hdr_valid_reg <= m_udp_hdr_valid_next;
     m_eth_dest_mac_reg <= m_eth_dest_mac_next;
     m_eth_src_mac_reg <= m_eth_src_mac_next;
     m_eth_type_reg <= m_eth_type_next;
@@ -322,12 +325,6 @@ always @(posedge clk) begin
     m_udp_dest_port_reg <= m_udp_dest_port_next;
     m_udp_length_reg <= m_udp_length_next;
     m_udp_checksum_reg <= m_udp_checksum_next;
-
-    if (rst) begin
-        frame_reg <= 1'b0;
-        s_udp_hdr_ready_reg <= {S_COUNT{1'b0}};
-        m_udp_hdr_valid_reg <= 1'b0;
-    end
 end
 
 // output datapath logic
@@ -430,5 +427,3 @@ always @(posedge clk) begin
 end
 
 endmodule
-
-`resetall

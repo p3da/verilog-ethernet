@@ -24,9 +24,7 @@ THE SOFTWARE.
 
 // Language: Verilog 2001
 
-`resetall
 `timescale 1ns / 1ps
-`default_nettype none
 
 /*
  * UDP block, IP interface
@@ -413,5 +411,3 @@ udp_ip_tx_inst (
 );
 
 endmodule
-
-`resetall
