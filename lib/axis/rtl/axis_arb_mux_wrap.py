@@ -3,9 +3,11 @@
 Generates an AXI Stream arbitrated mux wrapper with the specified number of ports
 """
 
-import argparse
-from jinja2 import Template
+from __future__ import print_function
 
+import argparse
+import math
+from jinja2 import Template
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.strip())
@@ -21,7 +23,6 @@ def main():
         print(ex)
         exit(1)
 
-
 def generate(ports=4, name=None, output=None):
     n = ports
 
@@ -31,13 +32,17 @@ def generate(ports=4, name=None, output=None):
     if output is None:
         output = name + ".v"
 
+    print("Opening file '{0}'...".format(output))
+
+    output_file = open(output, 'w')
+
     print("Generating {0} port AXI stream arbitrated mux wrapper {1}...".format(n, name))
 
-    cn = (n-1).bit_length()
+    cn = int(math.ceil(math.log(n, 2)))
 
     t = Template(u"""/*
 
-Copyright (c) 2018-2021 Alex Forencich
+Copyright (c) 2018 Alex Forencich
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -61,9 +66,7 @@ THE SOFTWARE.
 
 // Language: Verilog 2001
 
-`resetall
 `timescale 1ns / 1ps
-`default_nettype none
 
 /*
  * AXI4-Stream {{n}} port arbitrated mux (wrapper)
@@ -78,10 +81,8 @@ module {{name}} #
     parameter KEEP_WIDTH = (DATA_WIDTH/8),
     // Propagate tid signal
     parameter ID_ENABLE = 0,
-    // input tid signal width
-    parameter S_ID_WIDTH = 8,
-    // output tid signal width
-    parameter M_ID_WIDTH = S_ID_WIDTH+{{cn}},
+    // tid signal width
+    parameter ID_WIDTH = 8,
     // Propagate tdest signal
     parameter DEST_ENABLE = 0,
     // tdest signal width
@@ -90,43 +91,39 @@ module {{name}} #
     parameter USER_ENABLE = 1,
     // tuser signal width
     parameter USER_WIDTH = 1,
-    // Propagate tlast signal
-    parameter LAST_ENABLE = 1,
-    // Update tid with routing information
-    parameter UPDATE_TID = 0,
-    // select round robin arbitration
-    parameter ARB_TYPE_ROUND_ROBIN = 0,
-    // LSB priority selection
-    parameter ARB_LSB_HIGH_PRIORITY = 1
+    // arbitration type: "PRIORITY" or "ROUND_ROBIN"
+    parameter ARB_TYPE = "PRIORITY",
+    // LSB priority: "LOW", "HIGH"
+    parameter LSB_PRIORITY = "HIGH"
 )
 (
-    input  wire                   clk,
-    input  wire                   rst,
+    input  wire                  clk,
+    input  wire                  rst,
 
     /*
      * AXI Stream inputs
      */
 {%- for p in range(n) %}
-    input  wire [DATA_WIDTH-1:0]  s{{'%02d'%p}}_axis_tdata,
-    input  wire [KEEP_WIDTH-1:0]  s{{'%02d'%p}}_axis_tkeep,
-    input  wire                   s{{'%02d'%p}}_axis_tvalid,
-    output wire                   s{{'%02d'%p}}_axis_tready,
-    input  wire                   s{{'%02d'%p}}_axis_tlast,
-    input  wire [S_ID_WIDTH-1:0]  s{{'%02d'%p}}_axis_tid,
-    input  wire [DEST_WIDTH-1:0]  s{{'%02d'%p}}_axis_tdest,
-    input  wire [USER_WIDTH-1:0]  s{{'%02d'%p}}_axis_tuser,
+    input  wire [DATA_WIDTH-1:0] s{{'%02d'%p}}_axis_tdata,
+    input  wire [KEEP_WIDTH-1:0] s{{'%02d'%p}}_axis_tkeep,
+    input  wire                  s{{'%02d'%p}}_axis_tvalid,
+    output wire                  s{{'%02d'%p}}_axis_tready,
+    input  wire                  s{{'%02d'%p}}_axis_tlast,
+    input  wire [ID_WIDTH-1:0]   s{{'%02d'%p}}_axis_tid,
+    input  wire [DEST_WIDTH-1:0] s{{'%02d'%p}}_axis_tdest,
+    input  wire [USER_WIDTH-1:0] s{{'%02d'%p}}_axis_tuser,
 {% endfor %}
     /*
      * AXI Stream output
      */
-    output wire [DATA_WIDTH-1:0]  m_axis_tdata,
-    output wire [KEEP_WIDTH-1:0]  m_axis_tkeep,
-    output wire                   m_axis_tvalid,
-    input  wire                   m_axis_tready,
-    output wire                   m_axis_tlast,
-    output wire [M_ID_WIDTH-1:0]  m_axis_tid,
-    output wire [DEST_WIDTH-1:0]  m_axis_tdest,
-    output wire [USER_WIDTH-1:0]  m_axis_tuser
+    output wire [DATA_WIDTH-1:0] m_axis_tdata,
+    output wire [KEEP_WIDTH-1:0] m_axis_tkeep,
+    output wire                  m_axis_tvalid,
+    input  wire                  m_axis_tready,
+    output wire                  m_axis_tlast,
+    output wire [ID_WIDTH-1:0]   m_axis_tid,
+    output wire [DEST_WIDTH-1:0] m_axis_tdest,
+    output wire [USER_WIDTH-1:0] m_axis_tuser
 );
 
 axis_arb_mux #(
@@ -135,16 +132,13 @@ axis_arb_mux #(
     .KEEP_ENABLE(KEEP_ENABLE),
     .KEEP_WIDTH(KEEP_WIDTH),
     .ID_ENABLE(ID_ENABLE),
-    .S_ID_WIDTH(S_ID_WIDTH),
-    .M_ID_WIDTH(M_ID_WIDTH),
+    .ID_WIDTH(ID_WIDTH),
     .DEST_ENABLE(DEST_ENABLE),
     .DEST_WIDTH(DEST_WIDTH),
     .USER_ENABLE(USER_ENABLE),
     .USER_WIDTH(USER_WIDTH),
-    .LAST_ENABLE(LAST_ENABLE),
-    .UPDATE_TID(UPDATE_TID),
-    .ARB_TYPE_ROUND_ROBIN(ARB_TYPE_ROUND_ROBIN),
-    .ARB_LSB_HIGH_PRIORITY(ARB_LSB_HIGH_PRIORITY)
+    .ARB_TYPE(ARB_TYPE),
+    .LSB_PRIORITY(LSB_PRIORITY)
 )
 axis_arb_mux_inst (
     .clk(clk),
@@ -171,22 +165,16 @@ axis_arb_mux_inst (
 
 endmodule
 
-`resetall
-
 """)
 
-    print(f"Writing file '{output}'...")
-
-    with open(output, 'w') as f:
-        f.write(t.render(
-            n=n,
-            cn=cn,
-            name=name
-        ))
-        f.flush()
+    output_file.write(t.render(
+        n=n,
+        cn=cn,
+        name=name
+    ))
 
     print("Done")
 
-
 if __name__ == "__main__":
     main()
+

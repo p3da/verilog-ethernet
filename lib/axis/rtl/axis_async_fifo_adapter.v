@@ -24,9 +24,7 @@ THE SOFTWARE.
 
 // Language: Verilog 2001
 
-`resetall
 `timescale 1ns / 1ps
-`default_nettype none
 
 /*
  * AXI4-Stream asynchronous FIFO with width converter
@@ -63,8 +61,6 @@ module axis_async_fifo_adapter #
     parameter USER_ENABLE = 1,
     // tuser signal width
     parameter USER_WIDTH = 1,
-    // number of output pipeline registers
-    parameter PIPELINE_OUTPUT = 2,
     // Frame FIFO mode - operate on frames instead of cycles
     // When set, m_axis_tvalid will not be deasserted within a frame
     // Requires LAST_ENABLE set
@@ -73,15 +69,12 @@ module axis_async_fifo_adapter #
     parameter USER_BAD_FRAME_VALUE = 1'b1,
     // tuser mask for bad frame marker
     parameter USER_BAD_FRAME_MASK = 1'b1,
-    // Drop frames larger than FIFO
-    // Requires FRAME_FIFO set
-    parameter DROP_OVERSIZE_FRAME = FRAME_FIFO,
     // Drop frames marked bad
-    // Requires FRAME_FIFO and DROP_OVERSIZE_FRAME set
+    // Requires FRAME_FIFO set
     parameter DROP_BAD_FRAME = 0,
     // Drop incoming frames when full
     // When set, s_axis_tready is always asserted
-    // Requires FRAME_FIFO and DROP_OVERSIZE_FRAME set
+    // Requires FRAME_FIFO set
     parameter DROP_WHEN_FULL = 0
 )
 (
@@ -314,18 +307,17 @@ axis_async_fifo #(
     .DEST_WIDTH(DEST_WIDTH),
     .USER_ENABLE(USER_ENABLE),
     .USER_WIDTH(USER_WIDTH),
-    .PIPELINE_OUTPUT(PIPELINE_OUTPUT),
     .FRAME_FIFO(FRAME_FIFO),
     .USER_BAD_FRAME_VALUE(USER_BAD_FRAME_VALUE),
     .USER_BAD_FRAME_MASK(USER_BAD_FRAME_MASK),
-    .DROP_OVERSIZE_FRAME(DROP_OVERSIZE_FRAME),
     .DROP_BAD_FRAME(DROP_BAD_FRAME),
     .DROP_WHEN_FULL(DROP_WHEN_FULL)
 )
 fifo_inst (
+    // Common reset
+    .async_rst(s_rst | m_rst),
     // AXI input
     .s_clk(s_clk),
-    .s_rst(s_rst),
     .s_axis_tdata(pre_fifo_axis_tdata),
     .s_axis_tkeep(pre_fifo_axis_tkeep),
     .s_axis_tvalid(pre_fifo_axis_tvalid),
@@ -336,7 +328,6 @@ fifo_inst (
     .s_axis_tuser(pre_fifo_axis_tuser),
     // AXI output
     .m_clk(m_clk),
-    .m_rst(m_rst),
     .m_axis_tdata(post_fifo_axis_tdata),
     .m_axis_tkeep(post_fifo_axis_tkeep),
     .m_axis_tvalid(post_fifo_axis_tvalid),
@@ -355,5 +346,3 @@ fifo_inst (
 );
 
 endmodule
-
-`resetall

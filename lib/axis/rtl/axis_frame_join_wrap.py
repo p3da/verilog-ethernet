@@ -3,9 +3,11 @@
 Generates an AXI Stream frame joiner wrapper with the specified number of ports
 """
 
-import argparse
-from jinja2 import Template
+from __future__ import print_function
 
+import argparse
+import math
+from jinja2 import Template
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.strip())
@@ -21,7 +23,6 @@ def main():
         print(ex)
         exit(1)
 
-
 def generate(ports=4, name=None, output=None):
     n = ports
 
@@ -31,13 +32,17 @@ def generate(ports=4, name=None, output=None):
     if output is None:
         output = name + ".v"
 
+    print("Opening file '{0}'...".format(output))
+
+    output_file = open(output, 'w')
+
     print("Generating {0} port AXI stream frame joiner wrapper {1}...".format(n, name))
 
-    cn = (n-1).bit_length()
+    cn = int(math.ceil(math.log(n, 2)))
 
     t = Template(u"""/*
 
-Copyright (c) 2018-2021 Alex Forencich
+Copyright (c) 2018 Alex Forencich
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -61,9 +66,7 @@ THE SOFTWARE.
 
 // Language: Verilog 2001
 
-`resetall
 `timescale 1ns / 1ps
-`default_nettype none
 
 /*
  * AXI4-Stream {{n}} port frame joiner (wrapper)
@@ -140,22 +143,16 @@ axis_frame_join_inst (
 
 endmodule
 
-`resetall
-
 """)
 
-    print(f"Writing file '{output}'...")
-
-    with open(output, 'w') as f:
-        f.write(t.render(
-            n=n,
-            cn=cn,
-            name=name
-        ))
-        f.flush()
+    output_file.write(t.render(
+        n=n,
+        cn=cn,
+        name=name
+    ))
 
     print("Done")
 
-
 if __name__ == "__main__":
     main()
+

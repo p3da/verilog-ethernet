@@ -70,9 +70,8 @@ def bench():
     M_BASE = [0, 1, 2, 3]
     M_TOP = [0, 1, 2, 3]
     M_CONNECT = [0b1111]*M_COUNT
-    ARB_TYPE_ROUND_ROBIN = 1
-    ARB_LSB_HIGH_PRIORITY = 1
-    RAM_PIPELINE = 2
+    ARB_TYPE = "ROUND_ROBIN"
+    LSB_PRIORITY = "HIGH"
 
     # Inputs
     clk = Signal(bool(0))

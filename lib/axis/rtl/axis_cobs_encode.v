@@ -24,9 +24,7 @@ THE SOFTWARE.
 
 // Language: Verilog 2001
 
-`resetall
 `timescale 1ns / 1ps
-`default_nettype none
 
 /*
  * AXI4-Stream consistent overhead byte stuffing (COBS) encoder
@@ -100,16 +98,6 @@ wire code_fifo_out_tlast;
 wire code_fifo_out_tuser;
 reg code_fifo_out_tready;
 
-reg [7:0] data_fifo_in_tdata;
-reg data_fifo_in_tvalid;
-reg data_fifo_in_tlast;
-wire data_fifo_in_tready;
-
-wire [7:0] data_fifo_out_tdata;
-wire data_fifo_out_tvalid;
-wire data_fifo_out_tlast;
-reg data_fifo_out_tready;
-
 assign s_axis_tready = code_fifo_in_tready && data_fifo_in_tready && s_axis_tready_mask;
 
 axis_fifo #(
@@ -149,6 +137,16 @@ code_fifo_inst (
     .status_bad_frame(),
     .status_good_frame()
 );
+
+reg [7:0] data_fifo_in_tdata;
+reg data_fifo_in_tvalid;
+reg data_fifo_in_tlast;
+wire data_fifo_in_tready;
+
+wire [7:0] data_fifo_out_tdata;
+wire data_fifo_out_tvalid;
+wire data_fifo_out_tlast;
+reg data_fifo_out_tready;
 
 axis_fifo #(
     .DEPTH(256),
@@ -506,5 +504,3 @@ always @(posedge clk) begin
 end
 
 endmodule
-
-`resetall

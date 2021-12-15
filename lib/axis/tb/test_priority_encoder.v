@@ -33,7 +33,6 @@ module test_priority_encoder;
 
 // Parameters
 localparam WIDTH = 32;
-localparam LSB_HIGH_PRIORITY = 0;
 
 // Inputs
 reg clk = 0;
@@ -67,8 +66,7 @@ initial begin
 end
 
 priority_encoder #(
-    .WIDTH(WIDTH),
-    .LSB_HIGH_PRIORITY(LSB_HIGH_PRIORITY)
+    .WIDTH(WIDTH)
 )
 UUT (
     .input_unencoded(input_unencoded),

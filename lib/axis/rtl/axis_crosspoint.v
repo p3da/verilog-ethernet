@@ -24,9 +24,7 @@ THE SOFTWARE.
 
 // Language: Verilog 2001
 
-`resetall
 `timescale 1ns / 1ps
-`default_nettype none
 
 /*
  * AXI4-Stream crosspoint
@@ -128,7 +126,7 @@ always @(posedge clk) begin
     end else begin
         s_axis_tvalid_reg <= s_axis_tvalid;
         for (i = 0; i < M_COUNT; i = i + 1) begin
-            m_axis_tvalid_reg[i] <= s_axis_tvalid_reg[select_reg[i*CL_S_COUNT +: CL_S_COUNT]];
+            m_axis_tvalid_reg[i] = s_axis_tvalid_reg[select_reg[i*CL_S_COUNT +: CL_S_COUNT]];
         end
         select_reg <= select;
     end
@@ -151,5 +149,3 @@ always @(posedge clk) begin
 end
 
 endmodule
-
-`resetall
