@@ -231,7 +231,7 @@ def test_eth_phy_10g(request):
         os.path.join(rtl_dir, f"{dut}_tx_if.v"),
         os.path.join(rtl_dir, "xgmii_baser_dec_64.v"),
         os.path.join(rtl_dir, "xgmii_baser_enc_64.v"),
-        os.path.join(rtl_dir, "lfsr.v"),
+        os.path.join(rtl_dir, "ve_lfsr.v"),
     ]
 
     parameters = {}

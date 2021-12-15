@@ -30,7 +30,7 @@ DUT      = arp_cache
 TOPLEVEL = $(DUT)
 MODULE   = test_$(DUT)
 VERILOG_SOURCES += ../../rtl/$(DUT).v
-VERILOG_SOURCES += ../../rtl/lfsr.v
+VERILOG_SOURCES += ../../rtl/ve_lfsr.v
 
 # module parameters
 export PARAM_CACHE_ADDR_WIDTH ?= 2

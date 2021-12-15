@@ -33,7 +33,7 @@ VERILOG_SOURCES += ../../rtl/$(DUT).v
 VERILOG_SOURCES += ../../rtl/arp_eth_rx.v
 VERILOG_SOURCES += ../../rtl/arp_eth_tx.v
 VERILOG_SOURCES += ../../rtl/arp_cache.v
-VERILOG_SOURCES += ../../rtl/lfsr.v
+VERILOG_SOURCES += ../../rtl/ve_lfsr.v
 
 # module parameters
 export PARAM_DATA_WIDTH ?= 8

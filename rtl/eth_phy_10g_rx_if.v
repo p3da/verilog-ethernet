@@ -153,7 +153,7 @@ reg [5:0] rx_error_count_2_reg = 0;
 reg [5:0] rx_error_count_1_temp = 0;
 reg [5:0] rx_error_count_2_temp = 0;
 
-lfsr #(
+ve_lfsr#(
     .LFSR_WIDTH(58),
     .LFSR_POLY(58'h8000000001),
     .LFSR_CONFIG("FIBONACCI"),
@@ -169,7 +169,7 @@ descrambler_inst (
     .state_out(scrambler_state)
 );
 
-lfsr #(
+ve_lfsr#(
     .LFSR_WIDTH(31),
     .LFSR_POLY(31'h10000001),
     .LFSR_CONFIG("FIBONACCI"),

@@ -222,7 +222,7 @@ def test_fpga_core(request):
         os.path.join(eth_rtl_dir, "eth_mac_10g.v"),
         os.path.join(eth_rtl_dir, "axis_xgmii_rx_64.v"),
         os.path.join(eth_rtl_dir, "axis_xgmii_tx_64.v"),
-        os.path.join(eth_rtl_dir, "lfsr.v"),
+        os.path.join(eth_rtl_dir, "ve_lfsr.v"),
         os.path.join(eth_rtl_dir, "eth_axis_rx.v"),
         os.path.join(axis_rtl_dir, "axis_async_fifo.v"),
         os.path.join(axis_rtl_dir, "axis_async_fifo_adapter.v"),

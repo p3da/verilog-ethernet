@@ -41,7 +41,7 @@ srcs.append("../rtl/eth_phy_10g_rx_if.v")
 srcs.append("../rtl/eth_phy_10g_rx_ber_mon.v")
 srcs.append("../rtl/eth_phy_10g_rx_frame_sync.v")
 srcs.append("../rtl/xgmii_baser_dec_64.v")
-srcs.append("../rtl/lfsr.v")
+srcs.append("../rtl/ve_lfsr.v")
 srcs.append("%s.v" % testbench)
 
 src = ' '.join(srcs)

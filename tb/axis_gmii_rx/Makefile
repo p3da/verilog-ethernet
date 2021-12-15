@@ -30,7 +30,7 @@ DUT      = axis_gmii_rx
 TOPLEVEL = $(DUT)
 MODULE   = test_$(DUT)
 VERILOG_SOURCES += ../../rtl/$(DUT).v
-VERILOG_SOURCES += ../../rtl/lfsr.v
+VERILOG_SOURCES += ../../rtl/ve_lfsr.v
 
 # module parameters
 export PARAM_DATA_WIDTH ?= 8

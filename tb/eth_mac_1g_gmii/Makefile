@@ -37,7 +37,7 @@ VERILOG_SOURCES += ../../rtl/oddr.v
 VERILOG_SOURCES += ../../rtl/eth_mac_1g.v
 VERILOG_SOURCES += ../../rtl/axis_gmii_rx.v
 VERILOG_SOURCES += ../../rtl/axis_gmii_tx.v
-VERILOG_SOURCES += ../../rtl/lfsr.v
+VERILOG_SOURCES += ../../rtl/ve_lfsr.v
 
 # module parameters
 export PARAM_ENABLE_PADDING ?= 1

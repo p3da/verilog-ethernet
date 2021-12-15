@@ -460,7 +460,7 @@ and data lines.
     rtl/ip_eth_tx.v                 : IPv4 frame transmitter
     rtl/ip_eth_tx_64.v              : IPv4 frame transmitter (64 bit)
     rtl/ip_mux.v                    : IP frame multiplexer
-    rtl/lfsr.v                      : Generic LFSR/CRC module
+    rtl/ve_lfsr.v                      : Generic LFSR/CRC module
     rtl/mii_phy_if.v                : MII PHY interface
     rtl/oddr.v                      : Generic DDR output register
     rtl/ptp_clock.v                 : PTP clock

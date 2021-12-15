@@ -323,7 +323,7 @@ def test_eth_mac_phy_10g_fifo(request, data_width, enable_dic):
         os.path.join(rtl_dir, "eth_phy_10g_tx_if.v"),
         os.path.join(rtl_dir, "axis_baser_rx_64.v"),
         os.path.join(rtl_dir, "axis_baser_tx_64.v"),
-        os.path.join(rtl_dir, "lfsr.v"),
+        os.path.join(rtl_dir, "ve_lfsr.v"),
         os.path.join(axis_rtl_dir, "axis_adapter.v"),
         os.path.join(axis_rtl_dir, "axis_async_fifo.v"),
         os.path.join(axis_rtl_dir, "axis_async_fifo_adapter.v"),

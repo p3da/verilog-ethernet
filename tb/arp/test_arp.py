@@ -347,7 +347,7 @@ def test_arp(request, data_width):
         os.path.join(rtl_dir, "arp_eth_rx.v"),
         os.path.join(rtl_dir, "arp_eth_tx.v"),
         os.path.join(rtl_dir, "arp_cache.v"),
-        os.path.join(rtl_dir, "lfsr.v"),
+        os.path.join(rtl_dir, "ve_lfsr.v"),
     ]
 
     parameters = {}

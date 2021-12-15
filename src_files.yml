@@ -6,7 +6,7 @@ verilog-ethernet:
     rtl/ptp_ts_extract.v,
     rtl/iddr.v,
     rtl/ssio_ddr_in.v,
-    rtl/lfsr.v,
+    rtl/ve_lfsr.v,
     rtl/oddr.v,
     rtl/axis_gmii_rx.v,
     rtl/axis_gmii_tx.v,
