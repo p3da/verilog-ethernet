@@ -18,8 +18,8 @@ verilog-ethernet:
     rtl/eth_mac_1g_rgmii_fifo.v,
     rtl/eth_axis_tx.v,
     rtl/eth_axis_rx.v,
-    rtl/ptp_clock.v,
     rtl/ptp_perout.v,
+    lib/axis/rtl/priority_encoder.v
     lib/axis/rtl/arbiter.v,
     rtl/ip_arb_mux.v,
     rtl/arp_cache.v,
