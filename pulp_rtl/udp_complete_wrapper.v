@@ -31,8 +31,7 @@ THE SOFTWARE.
 /*
  * FPGA core logic
  */
-module udp_complete_wrapper #
-(
+module udp_complete_wrapper #(
     parameter TARGET = "GENERIC"
 )
 (
@@ -58,7 +57,7 @@ module udp_complete_wrapper #
     output wire       phy_tx_clk,
     output wire [3:0] phy_txd,
     output wire       phy_tx_ctl,
-    output wire       phy_reset_n,
+    output wire       phy_reset_n
 );
 
 // AXI between MAC and Ethernet modules
