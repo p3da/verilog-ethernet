@@ -40,7 +40,7 @@ VERILOG_SOURCES += ../../rtl/$(DUT)_tx.v
 VERILOG_SOURCES += ../../rtl/$(DUT)_tx_if.v
 VERILOG_SOURCES += ../../rtl/xgmii_baser_dec_64.v
 VERILOG_SOURCES += ../../rtl/xgmii_baser_enc_64.v
-VERILOG_SOURCES += ../../rtl/lfsr.v
+VERILOG_SOURCES += ../../rtl/ve_lfsr.v
 
 # module parameters
 export PARAM_DATA_WIDTH ?= 64

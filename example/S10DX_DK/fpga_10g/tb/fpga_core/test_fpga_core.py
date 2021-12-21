@@ -304,7 +304,7 @@ def test_fpga_core(request):
 
     verilog_sources = [
         os.path.join(rtl_dir, f"{dut}.v"),
-        os.path.join(eth_rtl_dir, "lfsr.v"),
+        os.path.join(eth_rtl_dir, "ve_lfsr.v"),
         os.path.join(eth_rtl_dir, "eth_axis_rx.v"),
         os.path.join(eth_rtl_dir, "eth_axis_tx.v"),
         os.path.join(eth_rtl_dir, "udp_complete_64.v"),

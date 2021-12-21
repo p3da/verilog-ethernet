@@ -86,7 +86,7 @@ generate
 
     for (n = 0; n < KEEP_WIDTH; n = n + 1) begin : crc
 
-        lfsr #(
+        ve_lfsr #(
             .LFSR_WIDTH(32),
             .LFSR_POLY(32'h4c11db7),
             .LFSR_CONFIG("GALOIS"),

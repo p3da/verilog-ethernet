@@ -34,7 +34,7 @@ VERILOG_SOURCES += ../../rtl/axis_xgmii_rx_32.v
 VERILOG_SOURCES += ../../rtl/axis_xgmii_tx_32.v
 VERILOG_SOURCES += ../../rtl/axis_xgmii_rx_64.v
 VERILOG_SOURCES += ../../rtl/axis_xgmii_tx_64.v
-VERILOG_SOURCES += ../../rtl/lfsr.v
+VERILOG_SOURCES += ../../rtl/ve_lfsr.v
 
 # module parameters
 export PARAM_DATA_WIDTH ?= 64

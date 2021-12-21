@@ -173,7 +173,7 @@ def test_fpga_core(request):
         os.path.join(eth_rtl_dir, "eth_mac_1g.v"),
         os.path.join(eth_rtl_dir, "axis_gmii_rx.v"),
         os.path.join(eth_rtl_dir, "axis_gmii_tx.v"),
-        os.path.join(eth_rtl_dir, "lfsr.v"),
+        os.path.join(eth_rtl_dir, "ve_lfsr.v"),
         os.path.join(eth_rtl_dir, "eth_axis_rx.v"),
         os.path.join(eth_rtl_dir, "eth_axis_tx.v"),
         os.path.join(eth_rtl_dir, "udp_complete.v"),

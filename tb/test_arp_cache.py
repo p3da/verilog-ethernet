@@ -34,7 +34,7 @@ testbench = 'test_%s' % module
 srcs = []
 
 srcs.append("../rtl/%s.v" % module)
-srcs.append("../rtl/lfsr.v")
+srcs.append("../rtl/ve_lfsr.v")
 srcs.append("%s.v" % testbench)
 
 src = ' '.join(srcs)

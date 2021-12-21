@@ -137,7 +137,7 @@ def test_axis_baser_rx_64(request):
 
     verilog_sources = [
         os.path.join(rtl_dir, f"{dut}.v"),
-        os.path.join(rtl_dir, "lfsr.v"),
+        os.path.join(rtl_dir, "ve_lfsr.v"),
     ]
 
     parameters = {}

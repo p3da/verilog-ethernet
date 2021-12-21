@@ -286,7 +286,7 @@ IP frame transmitter with 64 bit datapath for 10G/25G Ethernet.
 IP frame multiplexer with parametrizable data width and port count.
 Supports priority and round-robin arbitration.
 
-### `lfsr` module
+### `ve_lfsr` module
 
 Fully parametrizable combinatorial parallel LFSR/CRC module.
 
@@ -460,7 +460,7 @@ and data lines.
     rtl/ip_eth_tx.v                 : IPv4 frame transmitter
     rtl/ip_eth_tx_64.v              : IPv4 frame transmitter (64 bit)
     rtl/ip_mux.v                    : IP frame multiplexer
-    rtl/lfsr.v                      : Generic LFSR/CRC module
+    rtl/ve_lfsr.v                      : Generic LFSR/CRC module
     rtl/mii_phy_if.v                : MII PHY interface
     rtl/oddr.v                      : Generic DDR output register
     rtl/ptp_clock.v                 : PTP clock

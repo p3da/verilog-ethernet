@@ -228,7 +228,7 @@ def test_eth_mac_1g(request):
         os.path.join(rtl_dir, f"{dut}.v"),
         os.path.join(rtl_dir, "axis_gmii_rx.v"),
         os.path.join(rtl_dir, "axis_gmii_tx.v"),
-        os.path.join(rtl_dir, "lfsr.v"),
+        os.path.join(rtl_dir, "ve_lfsr.v"),
     ]
 
     parameters = {}
