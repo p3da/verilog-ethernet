@@ -19,5 +19,5 @@ verilog-ethernet:
     rtl/udp_checksum_gen.v,
     rtl/udp.v,
     rtl/udp_complete.v,
-
+    example/UltraZed7ev/rtl/udp_complete_wrapper.v
   ]
