@@ -1,5 +1,6 @@
 verilog-ethernet:
   files: [
+    lib/axis/rtl/sync_reset.v,
     rtl/ve_lfsr.v,
     rtl/eth_axis_rx.v,
     rtl/eth_axis_tx.v,
