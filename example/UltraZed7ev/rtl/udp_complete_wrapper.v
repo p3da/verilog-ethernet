@@ -31,7 +31,8 @@ THE SOFTWARE.
 /*
  * FPGA core logic
  */
-module udp_complete_wrapper #(
+module udp_complete_wrapper #
+(
     parameter TARGET = "GENERIC"
 )
 (
@@ -46,7 +47,7 @@ module udp_complete_wrapper #(
     /*
      * GPIO
      */
-    //output wire [7:0] led,
+    output wire [7:0] led,
 
     /*
      * Ethernet: 1000BASE-T RGMII
@@ -286,9 +287,8 @@ always @(posedge clk_125mhz) begin
     end
 end
 
-//assign led = led_reg;
+assign led = led_reg;
 assign phy_reset_n = !rst_125mhz;
-
 
 eth_mac_1g_rgmii_fifo #(
     .TARGET(TARGET),

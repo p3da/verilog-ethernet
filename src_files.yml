@@ -1,5 +1,6 @@
 verilog-ethernet:
   files: [
+    lib/axis/rtl/sync_reset.v,
     rtl/ptp_clock.v,
     lib/axis/rtl/axis_fifo.v,
     rtl/ptp_clock_cdc.v,
@@ -36,5 +37,5 @@ verilog-ethernet:
     rtl/udp_checksum_gen.v,
     rtl/udp.v,
     rtl/udp_complete.v,
-    pulp_rtl/udp_complete_wrapper.v,
+    example/UltraZed7ev/rtl/udp_complete_wrapper.v
   ]
