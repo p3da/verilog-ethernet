@@ -1,5 +1,8 @@
 verilog-ethernet:
   files: [
+    rtl/ptp_clock.v,
+    rtl/ptp_clock_cdc.v,
+    rtl/ptp_ts_extract.v,
     lib/axis/rtl/sync_reset.v,
     rtl/ve_lfsr.v,
     rtl/eth_axis_rx.v,
